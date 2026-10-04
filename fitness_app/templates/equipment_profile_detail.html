@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Equipment Profile - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>Equipment Profile</h1>
+
+{% if profile %}
+<div class="detail-list">
+    <dl>
+        <dt>Name</dt>
+        <dd>{{ profile.name or '--' }}</dd>
+
+        <dt>Machine Type</dt>
+        <dd>{{ profile.machine_type }}</dd>
+
+        <dt>Linked Equipment</dt>
+        <dd>{{ profile.equipment.name if profile.equipment else '--' }}</dd>
+
+        <dt>Muscles Used</dt>
+        <dd>
+            {% set muscles = profile.muscles_used | fromjson %}
+            {{ muscles | join(', ') if muscles else '--' }}
+        </dd>
+
+        <dt>Supported Exercises</dt>
+        <dd>
+            {% set exercises = profile.supported_exercises | fromjson %}
+            {{ exercises | join(', ') if exercises else '--' }}
+        </dd>
+
+        <dt>Program Modes</dt>
+        <dd>
+            {% set modes = profile.program_modes | fromjson %}
+            {{ modes | join(', ') if modes else '--' }}
+        </dd>
+
+        <dt>Details</dt>
+        <dd>{{ profile.details or '--' }}</dd>
+
+        <dt>Source</dt>
+        <dd>{{ profile.source or '--' }}</dd>
+    </dl>
+</div>
+
+<div class="section-header">
+    <a href="{{ url_for('equipment.edit_profile', profile_id=profile.id) }}" class="btn btn-primary">Edit</a>
+    <form method="POST" action="{{ url_for('equipment.delete_profile', profile_id=profile.id) }}" style="display:inline" onsubmit="return confirm('Delete this profile?');">
+        <button type="submit" class="btn btn-danger">Delete</button>
+    </form>
+    <a href="{{ url_for('equipment.list_profiles') }}" class="btn btn-secondary">Back</a>
+</div>
+{% else %}
+<p>Profile not found.</p>
+{% endif %}
+{% endblock %}

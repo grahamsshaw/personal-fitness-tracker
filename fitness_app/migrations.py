@@ -83,9 +83,46 @@ def _migrate_body_measurements(connection) -> bool:
     return changed
 
 
+def _migrate_equipment_profiles(connection) -> bool:
+    """Create the equipment_profiles table if it does not exist.
+
+    Holds rich training details for equipment (muscles used, supported
+    exercises, program modes). See ``models.EquipmentProfile``.
+
+    Args:
+        connection: An open SQLAlchemy connection.
+
+    Returns:
+        True if the table was created.
+    """
+    inspector = inspect(connection)
+    if "equipment_profiles" in inspector.get_table_names():
+        return False
+
+    connection.execute(text(
+        "CREATE TABLE equipment_profiles ("
+        "id INTEGER NOT NULL PRIMARY KEY, "
+        "equipment_id INTEGER, "
+        "machine_type VARCHAR(50) NOT NULL, "
+        "name VARCHAR(200), "
+        "muscles_used TEXT, "
+        "supported_exercises TEXT, "
+        "program_modes TEXT, "
+        "details TEXT, "
+        "source VARCHAR(100), "
+        "created_at DATETIME, "
+        "updated_at DATETIME, "
+        "FOREIGN KEY (equipment_id) REFERENCES equipment (id)"
+        ")"
+    ))
+    logger.info("Created table equipment_profiles")
+    return True
+
+
 #: Migrations applied in order at start-up. Each must be idempotent.
 MIGRATIONS = (
     _migrate_body_measurements,
+    _migrate_equipment_profiles,
 )
 
 

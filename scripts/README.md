@@ -9,6 +9,7 @@ and how to use it. This file is just the index.
 | Script | What it does |
 |--------|--------------|
 | `import_data.py` | Runs the Technogym and Wii Fit importers and prints a summary. This is what the daily scheduled job calls. |
+| `seed_equipment_profiles.py` | Seeds `EquipmentProfile` rows for known Technogym machines, linked to the `equipment` table. Idempotent — re-running only fills gaps. |
 
 ## import_data.py
 

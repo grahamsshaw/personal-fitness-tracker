@@ -138,9 +138,57 @@ class Equipment(db.Model):
 
     # Relationships
     workout_exercises = db.relationship("WorkoutExercise", backref="equipment", lazy=True)
+    profile = db.relationship("EquipmentProfile", backref="equipment", uselist=False, lazy=True)
 
     def __repr__(self):
         return f"<Equipment {self.name}>"
+
+
+class EquipmentProfile(db.Model):
+    """Rich training details for a piece of equipment.
+
+    Holds information for weight machines (muscles used, supported exercises)
+    and cardio machines (program modes, etc.). Can be linked to an Equipment
+    entry or exist independently for machines not yet in the equipment list.
+
+    This data is meant to be interrogated by the LLM later and surfaced when
+    logging exercises.
+    """
+    __tablename__ = "equipment_profiles"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Optional link to an Equipment entry
+    equipment_id = db.Column(db.Integer, db.ForeignKey("equipment.id"),
+                             nullable=True, unique=True)
+
+    # Machine type: 'weight', 'cardio', 'functional', 'free_weight'
+    machine_type = db.Column(db.String(50), nullable=False)
+
+    # Human-readable name (useful if not linked to Equipment)
+    name = db.Column(db.String(200))
+
+    # Muscles used (JSON array of strings)
+    muscles_used = db.Column(db.Text)
+
+    # Supported exercise types (JSON array of strings)
+    supported_exercises = db.Column(db.Text)
+
+    # Program modes for cardio machines (JSON array of strings)
+    program_modes = db.Column(db.Text)
+
+    # Additional details (JSON object)
+    details = db.Column(db.Text)
+
+    # Source: 'manufacturer_manual', 'technogym_website', 'manual_entry'
+    source = db.Column(db.String(100))
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow,
+                           onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<EquipmentProfile {self.name or self.machine_type}>"
 
 
 class Workout(db.Model):

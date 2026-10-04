@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Equipment Profiles - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>Equipment Profiles</h1>
+
+<div class="section-header">
+    <a href="{{ url_for('equipment.new_profile') }}" class="btn btn-primary">Add Profile</a>
+</div>
+
+{% if profiles %}
+<table class="table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Muscles Used</th>
+            <th>Source</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for profile in profiles %}
+        <tr>
+            <td><a href="{{ url_for('equipment.view_profile', profile_id=profile.id) }}">{{ profile.name or profile.machine_type }}</a></td>
+            <td>{{ profile.machine_type }}</td>
+            <td>
+                {% set muscles = profile.muscles_used | fromjson %}
+                {{ muscles | join(', ') if muscles else '--' }}
+            </td>
+            <td>{{ profile.source or '--' }}</td>
+            <td>
+                <a href="{{ url_for('equipment.edit_profile', profile_id=profile.id) }}" class="btn btn-small">Edit</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No equipment profiles yet. <a href="{{ url_for('equipment.new_profile') }}">Create your first profile</a>.</p>
+{% endif %}
+{% endblock %}

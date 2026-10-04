@@ -6,6 +6,7 @@ each file explains *why* something is set up the way it is, not just what.
 | File | What it covers |
 |------|----------------|
 | `BODY-MEASUREMENTS.md` | Weight and BMI conflict handling: why nothing is auto-overwritten, what counts as a conflict, the schema, the HTTP surface, and how importers report a disagreement. |
+| `HEALTH-CONNECT.md` | Phase 4 design: Health Connect sync direction, the no-server-side-API constraint, phone-app push options, authentication, data mapping, and the Pi endpoint. |
 | `IMPORTING.md` | Where data comes from (Technogym, Wii Fit), the import buttons, `scripts/import_data.py`, setting up the daily job, and how duplicate detection works. |
 | `DEPLOYMENT.md` | Deploying to the Raspberry Pi with `deploy-to-pi.bat`: folder layout, one-time setup, day-to-day commands, SSH keys, Wii Fit files on the Pi, troubleshooting. |
 | `wii fit save game data extract.url` | Shortcut to the Wii Fit save-file format documentation. |

@@ -43,8 +43,7 @@ from typing import BinaryIO
 from .base import BaseImporter, ImportResult
 from ..models import db, BodyMeasurement, ImportLog, Person
 from ..services.measurements import (
-    Reading,
-    describe_reading,
+    describe_conflict,
     supersede_mismatches_within_day,
 )
 

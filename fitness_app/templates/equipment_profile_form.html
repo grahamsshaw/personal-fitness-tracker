@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit' if profile else 'New' }} Equipment Profile - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>{{ 'Edit' if profile else 'New' }} Equipment Profile</h1>
+
+<form method="POST" class="form">
+    <div class="form-group">
+        <label for="name">Profile Name</label>
+        <input type="text" id="name" name="name" value="{{ profile.name if profile else '' }}" placeholder="e.g. Technogym Selection Pro Leg Press">
+    </div>
+
+    <div class="form-group">
+        <label for="machine_type">Machine Type *</label>
+        <select id="machine_type" name="machine_type" required>
+            <option value="">-- Select --</option>
+            <option value="weight" {{ 'selected' if profile and profile.machine_type == 'weight' }}>Weight Machine</option>
+            <option value="cardio" {{ 'selected' if profile and profile.machine_type == 'cardio' }}>Cardio Machine</option>
+            <option value="functional" {{ 'selected' if profile and profile.machine_type == 'functional' }}>Functional Trainer</option>
+            <option value="free_weight" {{ 'selected' if profile and profile.machine_type == 'free_weight' }}>Free Weight</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="equipment_id">Link to Equipment (optional)</label>
+        <select id="equipment_id" name="equipment_id">
+            <option value="">-- None --</option>
+            {% for item in equipment %}
+            <option value="{{ item.id }}" {{ 'selected' if profile and profile.equipment_id == item.id }}>{{ item.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="muscles_used">Muscles Used (comma-separated)</label>
+        <input type="text" id="muscles_used" name="muscles_used"
+               value="{{ profile.muscles_used | fromjson | join(', ') if profile and profile.muscles_used else '' }}"
+               placeholder="e.g. Quadriceps, Glutes, Hamstrings">
+    </div>
+
+    <div class="form-group">
+        <label for="supported_exercises">Supported Exercises (comma-separated)</label>
+        <input type="text" id="supported_exercises" name="supported_exercises"
+               value="{{ profile.supported_exercises | fromjson | join(', ') if profile and profile.supported_exercises else '' }}"
+               placeholder="e.g. Leg Press, Leg Extension, Calf Raise">
+    </div>
+
+    <div class="form-group">
+        <label for="program_modes">Program Modes (cardio machines, comma-separated)</label>
+        <input type="text" id="program_modes" name="program_modes"
+               value="{{ profile.program_modes | fromjson | join(', ') if profile and profile.program_modes else '' }}"
+               placeholder="e.g. Weight Loss, HIIT, Interval, Fat Burn">
+    </div>
+
+    <div class="form-group">
+        <label for="details">Additional Details</label>
+        <textarea id="details" name="details" rows="4">{{ profile.details if profile else '' }}</textarea>
+    </div>
+
+    <div class="form-group">
+        <label for="source">Source</label>
+        <select id="source" name="source">
+            <option value="">-- Select --</option>
+            <option value="manufacturer_manual" {{ 'selected' if profile and profile.source == 'manufacturer_manual' }}>Manufacturer Manual</option>
+            <option value="technogym_website" {{ 'selected' if profile and profile.source == 'technogym_website' }}>Technogym Website</option>
+            <option value="manual_entry" {{ 'selected' if profile and profile.source == 'manual_entry' }}>Manual Entry</option>
+        </select>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ 'Update' if profile else 'Create' }} Profile</button>
+        <a href="{{ url_for('equipment.list_profiles') }}" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+{% endblock %}

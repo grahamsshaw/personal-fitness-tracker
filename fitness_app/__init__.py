@@ -1,5 +1,6 @@
 """Personal Fitness Tracker - Flask application factory."""
 
+import json
 import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
@@ -10,6 +11,25 @@ db = SQLAlchemy()
 # Absolute path to the data directory (project root / data)
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA_DIR = os.path.join(BASE_DIR, "data")
+
+
+def _fromjson(value):
+    """Jinja filter: parse a JSON string, returning None when empty or invalid.
+
+    Used by the equipment profile templates to unpack JSON columns for display.
+
+    Args:
+        value: A JSON string, or None.
+
+    Returns:
+        The parsed value, or None.
+    """
+    if not value:
+        return None
+    try:
+        return json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return None
 
 
 def create_app(config=None):
@@ -33,6 +53,9 @@ def create_app(config=None):
     # Override with provided config
     if config:
         app.config.update(config)
+
+    # Register custom Jinja filters
+    app.jinja_env.filters["fromjson"] = _fromjson
 
     # Initialize extensions
     db.init_app(app)

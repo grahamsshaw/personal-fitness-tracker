@@ -20,8 +20,7 @@ from pathlib import Path
 from .base import BaseImporter, ImportResult
 from ..models import db, Activity, BodyMeasurement, Exercise, Equipment, ImportLog, Person
 from ..services.measurements import (
-    Reading,
-    describe_reading,
+    describe_conflict,
     supersede_mismatches_within_day,
 )
 
