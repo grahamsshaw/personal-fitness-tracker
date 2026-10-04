@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Equipment - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>Equipment</h1>
+
+<div class="section-header">
+    <a href="{{ url_for('equipment.new_equipment') }}" class="btn btn-primary">Add Equipment</a>
+</div>
+
+{% if equipment %}
+<table class="table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Manufacturer</th>
+            <th>Category</th>
+            <th>Muscle Group</th>
+            <th>Location</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in equipment %}
+        <tr>
+            <td><a href="{{ url_for('equipment.view_equipment', equipment_id=item.id) }}">{{ item.name }}</a></td>
+            <td>{{ item.manufacturer or '--' }}</td>
+            <td>{{ item.category or '--' }}</td>
+            <td>{{ item.muscle_group or '--' }}</td>
+            <td>{{ item.gym_location or '--' }}</td>
+            <td>
+                <a href="{{ url_for('equipment.edit_equipment', equipment_id=item.id) }}" class="btn btn-small">Edit</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No equipment added yet. <a href="{{ url_for('equipment.new_equipment') }}">Add your first equipment</a>.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}{{ equipment.name }} - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>{{ equipment.name }}</h1>
+
+<div class="detail-card">
+    <dl class="detail-list">
+        <dt>Manufacturer</dt>
+        <dd>{{ equipment.manufacturer or '--' }}</dd>
+        
+        <dt>Model</dt>
+        <dd>{{ equipment.model or '--' }}</dd>
+        
+        <dt>Category</dt>
+        <dd>{{ equipment.category or '--' }}</dd>
+        
+        <dt>Muscle Group</dt>
+        <dd>{{ equipment.muscle_group or '--' }}</dd>
+        
+        <dt>Location</dt>
+        <dd>{{ equipment.gym_location or '--' }}</dd>
+        
+        <dt>QR Code</dt>
+        <dd>{{ equipment.qr_code or '--' }}</dd>
+        
+        <dt>Notes</dt>
+        <dd>{{ equipment.notes or '--' }}</dd>
+    </dl>
+    
+    {% if equipment.exercises %}
+    <h3>Supported Exercises</h3>
+    <ul>
+        {% for ex in equipment.exercises %}
+        <li>{{ ex.name }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</div>
+
+<div class="form-actions">
+    <a href="{{ url_for('equipment.edit_equipment', equipment_id=equipment.id) }}" class="btn btn-primary">Edit</a>
+    <form method="POST" action="{{ url_for('equipment.delete_equipment', equipment_id=equipment.id) }}" style="display: inline;">
+        <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this equipment?')">Delete</button>
+    </form>
+    <a href="{{ url_for('equipment.list_equipment') }}" class="btn btn-secondary">Back</a>
+</div>
+{% endblock %}

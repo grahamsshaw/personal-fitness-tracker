@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Workout History - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>Workout History</h1>
+
+{% if workouts.items %}
+<table class="table">
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Name</th>
+            <th>Exercises</th>
+            <th>Duration</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for workout in workouts.items %}
+        <tr>
+            <td>{{ workout.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td><a href="{{ url_for('main.workout_detail', workout_id=workout.id) }}">{{ workout.workout_name }}</a></td>
+            <td>{{ workout.exercises|length }}</td>
+            <td>{% if workout.duration_seconds %}{{ (workout.duration_seconds / 60)|int }} min{% else %}--{% endif %}</td>
+            <td>
+                <a href="{{ url_for('workouts.edit_workout', workout_id=workout.id) }}" class="btn btn-small">Edit</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="pagination">
+    {% if workouts.has_prev %}
+    <a href="{{ url_for('main.history', page=workouts.prev_num) }}" class="btn btn-secondary">&laquo; Previous</a>
+    {% endif %}
+    <span>Page {{ workouts.page }} of {{ workouts.pages }}</span>
+    {% if workouts.has_next %}
+    <a href="{{ url_for('main.history', page=workouts.next_num) }}" class="btn btn-secondary">Next &raquo;</a>
+    {% endif %}
+</div>
+{% else %}
+<p>No workouts recorded yet. <a href="{{ url_for('workouts.new_workout') }}">Log your first workout</a>.</p>
+{% endif %}
+{% endblock %}

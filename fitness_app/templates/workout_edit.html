@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Workout - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>Edit Workout</h1>
+
+<form method="POST" class="form">
+    <div class="form-group">
+        <label for="workout_name">Workout Name</label>
+        <input type="text" id="workout_name" name="workout_name" value="{{ workout.workout_name }}">
+    </div>
+    
+    <div class="form-row">
+        <div class="form-group">
+            <label for="started_at">Start Time</label>
+            <input type="datetime-local" id="started_at" name="started_at" value="{{ workout.started_at.strftime('%Y-%m-%dT%H:%M') if workout.started_at else '' }}">
+        </div>
+        
+        <div class="form-group">
+            <label for="ended_at">End Time</label>
+            <input type="datetime-local" id="ended_at" name="ended_at" value="{{ workout.ended_at.strftime('%Y-%m-%dT%H:%M') if workout.ended_at else '' }}">
+        </div>
+    </div>
+    
+    <div class="form-group">
+        <label for="notes">Notes</label>
+        <textarea id="notes" name="notes" rows="3">{{ workout.notes or '' }}</textarea>
+    </div>
+    
+    <h2>Exercises</h2>
+    {% if workout.exercises %}
+    {% for we in workout.exercises %}
+    <div class="exercise-card">
+        <h3>{{ we.exercise_name }}</h3>
+        {% if we.sets %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Set</th>
+                    <th>Reps</th>
+                    <th>Weight (kg)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in we.sets %}
+                <tr>
+                    <td>{{ s.set_number }}</td>
+                    <td>{{ s.reps_actual or '--' }}</td>
+                    <td>{{ s.weight_kg_actual or '--' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% else %}
+    <p>No exercises in this workout.</p>
+    {% endif %}
+    
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+        <a href="{{ url_for('main.workout_detail', workout_id=workout.id) }}" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+{% endblock %}

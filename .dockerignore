@@ -1,0 +1,29 @@
+# Keep the Docker build context small and free of local-only files.
+# Anything listed here is NOT sent to the Pi when building the image.
+
+# Local data (SQLite DB, copied Wii Fit / Technogym exports)
+data/
+
+# Database backups
+backups/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Secrets - the real .env lives on the Pi, never in the image
+.env
+
+# Local-only development files
+debug/
+log/
+Archive/
+Resources_Archive/
+documentation/
+instance/
+.git/
+.gitignore
+*.db

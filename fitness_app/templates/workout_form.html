@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}Log Workout - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>Log Workout</h1>
+
+<!--
+  Device import panel
+  ------------------
+  Shown above the manual entry form because finishing a session is the moment
+  there is new data to pull in. Each button posts to the existing import routes
+  with a `next` field so the browser returns here rather than bouncing to the
+  import dashboard.
+
+  Both buttons are safe to press more than once: the importers skip anything
+  already stored, so a second press reports "nothing new" rather than creating
+  duplicates.
+-->
+<div class="import-panel">
+    <h2>Import from my devices</h2>
+    <p class="text-muted">
+        Pull in a session that your gym or console already recorded. Anything
+        already imported is skipped, so pressing these twice is harmless.
+    </p>
+    <div class="import-actions">
+        <form method="POST" action="{{ url_for('imports.import_technogym') }}">
+            <input type="hidden" name="next" value="{{ url_for('workouts.new_workout') }}">
+            <input type="hidden" name="days" value="7">
+            <button type="submit" class="btn btn-secondary">Import gym session (Technogym)</button>
+            <span class="import-hint">Sessions from the gym portal, last 7 days.</span>
+        </form>
+
+        <form method="POST" action="{{ url_for('imports.import_wii_fit') }}">
+            <input type="hidden" name="next" value="{{ url_for('workouts.new_workout') }}">
+            <button type="submit" class="btn btn-secondary">Import Wii Fit data</button>
+            <span class="import-hint">Weight, BMI and balance from your save files.</span>
+        </form>
+    </div>
+</div>
+
+<h2>Or enter it by hand</h2>
+
+<form method="POST" class="form" id="workout-form">
+    <div class="form-row">
+        <div class="form-group">
+            <label for="workout_name">Workout Name</label>
+            <input type="text" id="workout_name" name="workout_name" placeholder="e.g. Leg Day">
+        </div>
+        
+        <div class="form-group">
+            <label for="started_at">Start Time</label>
+            <input type="datetime-local" id="started_at" name="started_at">
+        </div>
+    </div>
+    
+    <div class="form-group">
+        <label for="ended_at">End Time</label>
+        <input type="datetime-local" id="ended_at" name="ended_at">
+    </div>
+    
+    <div class="form-group">
+        <label for="notes">Notes</label>
+        <textarea id="notes" name="notes" rows="2" placeholder="How did it go?"></textarea>
+    </div>
+    
+    <h2>Exercises</h2>
+    <div id="exercises-container">
+        <!-- Exercise rows added by JavaScript -->
+    </div>
+    
+    <button type="button" class="btn btn-secondary" onclick="addExercise()">+ Add Exercise</button>
+    
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save Workout</button>
+        <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const exercises = {{ exercises|tojson }};
+const equipment = {{ equipment|tojson }};
+let exerciseCount = 0;
+
+function addExercise() {
+    const container = document.getElementById('exercises-container');
+    const index = exerciseCount++;
+    
+    const div = document.createElement('div');
+    div.className = 'exercise-row';
+    div.innerHTML = `
+        <div class="exercise-header">
+            <span>Exercise #${index + 1}</span>
+            <button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.parentElement.remove()">Remove</button>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Exercise</label>
+                <input type="text" name="exercise_name" list="exercise-list" placeholder="Type exercise name" required>
+            </div>
+            <div class="form-group">
+                <label>Equipment</label>
+                <input type="text" name="equipment_name" list="equipment-list" placeholder="Type equipment name">
+            </div>
+        </div>
+        <div class="form-row">
+            <input type="hidden" name="exercise_id" value="">
+            <input type="hidden" name="equipment_id" value="">
+        </div>
+        <div class="sets-container">
+            <h4>Sets</h4>
+            <table class="table sets-table">
+                <thead>
+                    <tr>
+                        <th>Set</th>
+                        <th>Reps</th>
+                        <th>Weight (kg)</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>1</td>
+                        <td><input type="number" name="set_${index}_reps" placeholder="10" min="0"></td>
+                        <td><input type="number" name="set_${index}_weight" placeholder="70" step="0.5" min="0"></td>
+                        <td></td>
+                    </tr>
+                </tbody>
+            </table>
+            <button type="button" class="btn btn-small" onclick="addSet(this)">+ Add Set</button>
+        </div>
+    `;
+    container.appendChild(div);
+}
+
+function addSet(btn) {
+    const tbody = btn.previousElementSibling.querySelector('tbody');
+    const rowCount = tbody.rows.length;
+    const row = tbody.insertRow();
+    row.innerHTML = `
+        <td>${rowCount + 1}</td>
+        <td><input type="number" name="set_${exerciseCount - 1}_reps" placeholder="10" min="0"></td>
+        <td><input type="number" name="set_${exerciseCount - 1}_weight" placeholder="70" step="0.5" min="0"></td>
+        <td><button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.parentElement.remove()">X</button></td>
+    `;
+}
+
+// Add datalists for autocomplete
+const exerciseList = document.createElement('datalist');
+exerciseList.id = 'exercise-list';
+exercises.forEach(e => {
+    const opt = document.createElement('option');
+    opt.value = e.name;
+    exerciseList.appendChild(opt);
+});
+document.body.appendChild(exerciseList);
+
+const equipmentList = document.createElement('datalist');
+equipmentList.id = 'equipment-list';
+equipment.forEach(e => {
+    const opt = document.createElement('option');
+    opt.value = e.name;
+    equipmentList.appendChild(opt);
+});
+document.body.appendChild(equipmentList);
+
+// Add first exercise row
+addExercise();
+</script>
+{% endblock %}

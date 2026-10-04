@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}{{ "Edit" if equipment else "Add" }} Equipment - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>{{ "Edit" if equipment else "Add" }} Equipment</h1>
+
+<form method="POST" class="form">
+    <div class="form-group">
+        <label for="name">Name *</label>
+        <input type="text" id="name" name="name" value="{{ equipment.name if equipment else '' }}" required>
+    </div>
+    
+    <div class="form-row">
+        <div class="form-group">
+            <label for="manufacturer">Manufacturer</label>
+            <input type="text" id="manufacturer" name="manufacturer" value="{{ equipment.manufacturer if equipment else '' }}">
+        </div>
+        
+        <div class="form-group">
+            <label for="model">Model</label>
+            <input type="text" id="model" name="model" value="{{ equipment.model if equipment else '' }}">
+        </div>
+    </div>
+    
+    <div class="form-row">
+        <div class="form-group">
+            <label for="category">Category</label>
+            <select id="category" name="category">
+                <option value="">Select...</option>
+                <option value="machine" {% if equipment and equipment.category == 'machine' %}selected{% endif %}>Machine</option>
+                <option value="free_weight" {% if equipment and equipment.category == 'free_weight' %}selected{% endif %}>Free Weight</option>
+                <option value="cardio" {% if equipment and equipment.category == 'cardio' %}selected{% endif %}>Cardio</option>
+                <option value="bodyweight" {% if equipment and equipment.category == 'bodyweight' %}selected{% endif %}>Bodyweight</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="muscle_group">Muscle Group</label>
+            <input type="text" id="muscle_group" name="muscle_group" value="{{ equipment.muscle_group if equipment else '' }}">
+        </div>
+    </div>
+    
+    <div class="form-group">
+        <label for="gym_location">Gym / Location</label>
+        <input type="text" id="gym_location" name="gym_location" value="{{ equipment.gym_location if equipment else '' }}">
+    </div>
+    
+    <div class="form-group">
+        <label for="qr_code">QR Code</label>
+        <input type="text" id="qr_code" name="qr_code" value="{{ equipment.qr_code if equipment else '' }}">
+    </div>
+    
+    <div class="form-group">
+        <label for="qr_url">QR URL</label>
+        <input type="url" id="qr_url" name="qr_url" value="{{ equipment.qr_url if equipment else '' }}">
+    </div>
+    
+    <div class="form-group">
+        <label>Supported Exercises</label>
+        <div class="checkbox-group">
+            {% for ex in exercises %}
+            <label class="checkbox-label">
+                <input type="checkbox" name="exercises" value="{{ ex.id }}"
+                    {% if equipment and ex in equipment.exercises %}checked{% endif %}>
+                {{ ex.name }}
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <div class="form-group">
+        <label for="notes">Notes</label>
+        <textarea id="notes" name="notes" rows="3">{{ equipment.notes if equipment else '' }}</textarea>
+    </div>
+    
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save</button>
+        <a href="{{ url_for('equipment.list_equipment') }}" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+{% endblock %}

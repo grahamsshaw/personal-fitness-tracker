@@ -1,0 +1,31 @@
+# Secrets
+.env
+
+# Data (database, imported files, backups)
+data/
+backups/
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Flask
+instance/
+
+# Logs
+log/
+
+# Local-only development files
+debug/
+Archive/
+Resources_Archive/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

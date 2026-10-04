@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Body Measurements - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>Body Measurements</h1>
+
+<div class="section-header">
+    <form method="GET" class="form-inline">
+        <select name="type" onchange="this.form.submit()">
+            <option value="all" {% if current_type == 'all' %}selected{% endif %}>All Types</option>
+            {% for t in types %}
+            <option value="{{ t }}" {% if current_type == t %}selected{% endif %}>{{ t|title }}</option>
+            {% endfor %}
+        </select>
+    </form>
+</div>
+
+{% if measurements.items %}
+<table class="table">
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Value</th>
+            <th>Source</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for m in measurements.items %}
+        <tr>
+            <td>{{ m.measured_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>{{ m.measurement_type|title }}</td>
+            <td>
+                {% if m.measurement_type == 'weight' %}
+                    {{ "%.1f"|format(m.value) }} {{ m.unit }}
+                {% elif m.measurement_type == 'bmi' %}
+                    {{ "%.2f"|format(m.value) }}
+                {% else %}
+                    {{ m.value }} {{ m.unit }}
+                {% endif %}
+            </td>
+            <td>{{ m.source }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="pagination">
+    {% if measurements.has_prev %}
+    <a href="{{ url_for('imports.view_measurements', page=measurements.prev_num, type=current_type) }}" class="btn btn-secondary">&laquo; Previous</a>
+    {% endif %}
+    <span>Page {{ measurements.page }} of {{ measurements.pages }}</span>
+    {% if measurements.has_next %}
+    <a href="{{ url_for('imports.view_measurements', page=measurements.next_num, type=current_type) }}" class="btn btn-secondary">Next &raquo;</a>
+    {% endif %}
+</div>
+{% else %}
+<p>No body measurements recorded yet. Import Wii Fit data or add measurements manually.</p>
+{% endif %}
+
+<div class="form-actions">
+    <a href="{{ url_for('imports.import_dashboard') }}" class="btn btn-secondary">Back to Import</a>
+</div>
+{% endblock %}

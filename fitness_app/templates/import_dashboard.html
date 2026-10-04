@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}Import Data - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>Import Data</h1>
+
+<div class="import-section">
+    <h2>Wii Fit Plus</h2>
+    <p>Import weight, BMI, and balance measurements from your Wii Fit Plus save data.</p>
+
+    <p class="text-muted">
+        Reading from: <code>{{ wii_fit_dir }}</code>
+        {% if not wii_fit_available %}
+        <br><strong>Folder not reachable from this machine.</strong>
+        {% endif %}
+    </p>
+
+    {% if wii_fit_files %}
+    <div class="alert alert-success">
+        Found {{ wii_fit_files|length }} Wii Fit file(s): {{ wii_fit_files|join(", ") }}
+    </div>
+
+    <form method="POST" action="{{ url_for('imports.import_wii_fit') }}">
+        <button type="submit" class="btn btn-primary">Import Wii Fit Data</button>
+    </form>
+    {% else %}
+    <div class="alert alert-warning">
+        No Wii Fit files found. Upload your FitPlus*.dat files below, or point
+        <code>WII_FIT_SOURCE_PATH</code> in <code>.env</code> at the folder that
+        holds them (this is how the Raspberry Pi build reads them).
+    </div>
+    {% endif %}
+
+    <h3>Upload save files</h3>
+    <form method="POST" action="{{ url_for('imports.upload_wii_fit') }}" enctype="multipart/form-data" class="form">
+        <div class="form-group">
+            <label for="wii_fit_files">Wii Fit .dat files</label>
+            <input type="file" id="wii_fit_files" name="wii_fit_files" multiple accept=".dat">
+            <small class="text-muted">Uploaded to <code>{{ upload_dir }}</code></small>
+        </div>
+        <button type="submit" class="btn btn-primary">Upload Files</button>
+    </form>
+
+    {% if wii_fit_count > 0 %}
+    <p class="text-muted">{{ wii_fit_count }} Wii Fit records already imported.</p>
+    {% endif %}
+</div>
+
+<div class="import-section">
+    <h2>Technogym / Mywellness</h2>
+    <p>Import workout data from Technogym mywellness.com.</p>
+    
+    <h3>Manual Export</h3>
+    <p>Import from downloaded JSON export files (no login required).</p>
+    <form method="POST" action="{{ url_for('imports.import_technogym_manual') }}">
+        <button type="submit" class="btn btn-primary">Import Manual Export</button>
+    </form>
+    
+    <h3>Live Import</h3>
+    <p>Import directly from mywellness.com (requires login).</p>
+    <form method="POST" action="{{ url_for('imports.import_technogym') }}" class="form-inline">
+        <div class="form-group">
+            <label for="days">Date range (days)</label>
+            <select id="days" name="days">
+                <option value="7">Last 7 days</option>
+                <option value="30" selected>Last 30 days</option>
+                <option value="90">Last 90 days</option>
+                <option value="180">Last 6 months</option>
+                <option value="365">Last year</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Import Live Data</button>
+    </form>
+    
+    {% if technogym_count > 0 %}
+    <p class="text-muted">{{ technogym_count }} Technogym records already imported.</p>
+    {% endif %}
+</div>
+
+<div class="import-section">
+    <h2>Health Connect</h2>
+    <p>Import data from Samsung Health via Android Health Connect (coming in Phase 4).</p>
+    <button class="btn btn-secondary" disabled>Coming Soon</button>
+</div>
+
+{% if recent_imports %}
+<div class="import-section">
+    <h2>Recent Imports</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Source</th>
+                <th>Record Type</th>
+                <th>Action</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for imp in recent_imports %}
+            <tr>
+                <td>{{ imp.source }}</td>
+                <td>{{ imp.record_type }}</td>
+                <td>{{ imp.action }}</td>
+                <td>{{ imp.imported_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<div class="import-section">
+    <a href="{{ url_for('imports.view_measurements') }}" class="btn btn-secondary">View Body Measurements</a>
+</div>
+{% endblock %}

@@ -1,0 +1,35 @@
+# ===================================================================
+#  Personal Fitness Tracker - Docker Compose configuration
+#
+#  Deployed by deploy-to-pi.bat to:
+#      /opt/stacks/python/scripts/fitness-tracker/
+#
+#  This file is intentionally kept in its OWN folder so it never clashes
+#  with the rail_app compose file that lives in the parent folder.
+#
+#  The host port is configurable so the app can be moved to another port
+#  (e.g. if rail_app already uses 5000) without editing this file:
+#      FITNESS_HOST_PORT=5000   in .env on the Pi
+# ===================================================================
+services:
+  fitness-web:
+    build: .
+    container_name: fitness-web
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${FITNESS_HOST_PORT:-5000}:5000"
+    volumes:
+      # SQLite database + imported source files survive rebuilds
+      - ./data:/app/data
+      # Wii Fit save files from the NVIDIA Shield Pro.
+      # The Pi host must mount the Shield's SMB share at /mnt/shield-internal
+      # (see documentation/DEPLOYMENT.md). This bind mount makes it visible
+      # inside the container at the same path.
+      - /mnt/shield-internal:/mnt/shield-internal
+    # Runs as root by default so it can always write ./data on the Pi.
+    # To run as your own user instead, find your ids with `id` on the Pi and
+    # uncomment this line, e.g.:
+    #   user: "1000:1000"
+    # user: "${FITNESS_UID:-0}:${FITNESS_GID:-0}"

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}{{ workout.workout_name }} - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>{{ workout.workout_name }}</h1>
+
+<div class="detail-card">
+    <dl class="detail-list">
+        <dt>Date</dt>
+        <dd>{{ workout.started_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+        
+        {% if workout.ended_at %}
+        <dt>Ended</dt>
+        <dd>{{ workout.ended_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+        {% endif %}
+        
+        {% if workout.duration_seconds %}
+        <dt>Duration</dt>
+        <dd>{{ (workout.duration_seconds / 60)|int }} minutes</dd>
+        {% endif %}
+        
+        {% if workout.total_moves %}
+        <dt>Total Moves</dt>
+        <dd>{{ workout.total_moves }}</dd>
+        {% endif %}
+        
+        {% if workout.notes %}
+        <dt>Notes</dt>
+        <dd>{{ workout.notes }}</dd>
+        {% endif %}
+    </dl>
+</div>
+
+<h2>Exercises</h2>
+{% if workout.exercises %}
+{% for we in workout.exercises %}
+<div class="exercise-card">
+    <h3>{{ we.exercise_name }}</h3>
+    {% if we.equipment_name %}
+    <p class="text-muted">{{ we.equipment_name }}</p>
+    {% endif %}
+    
+    {% if we.sets %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Set</th>
+                <th>Reps</th>
+                <th>Weight (kg)</th>
+                <th>Volume</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in we.sets %}
+            <tr>
+                <td>{{ s.set_number }}</td>
+                <td>{{ s.reps_actual or '--' }}</td>
+                <td>{{ s.weight_kg_actual or '--' }}</td>
+                <td>{% if s.reps_actual and s.weight_kg_actual %}{{ "%.1f"|format(s.reps_actual * s.weight_kg_actual) }} kg{% else %}--{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+    
+    {% if we.calories %}
+    <p class="text-muted">Calories: {{ we.calories }}</p>
+    {% endif %}
+</div>
+{% endfor %}
+{% else %}
+<p>No exercises recorded for this workout.</p>
+{% endif %}
+
+<div class="form-actions">
+    <a href="{{ url_for('workouts.edit_workout', workout_id=workout.id) }}" class="btn btn-primary">Edit</a>
+    <form method="POST" action="{{ url_for('workouts.delete_workout', workout_id=workout.id) }}" style="display: inline;">
+        <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this workout?')">Delete</button>
+    </form>
+    <a href="{{ url_for('main.history') }}" class="btn btn-secondary">Back to History</a>
+</div>
+{% endblock %}

@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>Profile</h1>
+
+<!-- Current Weight Display -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <h3>Current Weight</h3>
+        <p class="stat-value">
+            {% if latest_weight %}
+                {{ "%.1f"|format(latest_weight.value) }} {{ latest_weight.unit }}
+                <small>({{ latest_weight.measured_at.strftime('%Y-%m-%d') }})</small>
+            {% else %}
+                --
+            {% endif %}
+        </p>
+        {% if latest_weight %}
+            <p class="stat-source">from {{ source_labels.get(latest_weight.source, latest_weight.source) }}</p>
+        {% endif %}
+    </div>
+    <div class="stat-card">
+        <h3>Current BMI</h3>
+        <p class="stat-value">
+            {% if latest_bmi %}
+                {{ "%.2f"|format(latest_bmi.value) }}
+                <small>({{ latest_bmi.measured_at.strftime('%Y-%m-%d') }})</small>
+            {% else %}
+                --
+            {% endif %}
+        </p>
+        {% if latest_bmi %}
+            <p class="stat-source">from {{ source_labels.get(latest_bmi.source, latest_bmi.source) }}</p>
+        {% endif %}
+    </div>
+    <div class="stat-card">
+        <h3>Height</h3>
+        <p class="stat-value">
+            {% if person and person.height_cm %}
+                {{ "%.0f"|format(person.height_cm) }} cm
+            {% else %}
+                --
+            {% endif %}
+        </p>
+        {% if person and person.height_cm %}
+            <p class="stat-source">used to calculate BMI</p>
+        {% endif %}
+    </div>
+</div>
+
+<!--
+  Conflicts
+  ---------
+  Shown whenever two sources recorded weight or BMI for the same day and
+  disagreed. Nothing is auto-resolved: every reading is kept, and the user picks
+  which one the app should treat as the value for that day.
+-->
+{% if conflicts %}
+<div class="conflict-panel">
+    <h2>Sources disagree &mdash; choose a value</h2>
+    {% set types = conflicts | map(attribute='measurement_type') | unique | list %}
+    <p class="conflict-intro">
+        {% if types | length == 1 %}
+            Two different sources recorded {{ types[0] }} for the same day.
+        {% else %}
+            Two different sources recorded {{ types | join(' and ') }} on
+            {{ conflicts | length }} days.
+        {% endif %}
+        Both readings are stored; pick the one you want to use and the other
+        will be hidden from the charts and current values.
+    </p>
+
+    {% for conflict in conflicts %}
+    <div class="conflict-card">
+        <h3>
+            {{ conflict.measurement_type | capitalize }}
+            &mdash; {{ conflict.day.strftime('%d %B %Y') }}
+            <span class="conflict-spread">{{ "%.2f"|format(conflict.spread) }} {{ 'kg' if conflict.measurement_type == 'weight' else '' }} apart</span>
+        </h3>
+        <form method="POST" action="{{ url_for('main.resolve_measurement') }}" class="choice-form">
+            <input type="hidden" name="measurement_type" value="{{ conflict.measurement_type }}">
+            <input type="hidden" name="day" value="{{ conflict.day.isoformat() }}">
+
+            {% for reading in conflict.readings %}
+            <label class="choice">
+                <input type="radio" name="keep_id" value="{{ reading.id }}"
+                       {% if loop.first %}checked{% endif %}>
+                <span class="choice-value">{{ "%.1f"|format(reading.value) }}{% if reading.unit %} {{ reading.unit }}{% endif %}</span>
+                <span class="choice-source">{{ source_labels.get(reading.source, reading.source) }}</span>
+                <span class="choice-time">{{ reading.measured_at.strftime('%H:%M') }}</span>
+            </label>
+            {% endfor %}
+
+            <button type="submit" class="btn btn-primary">Use this value</button>
+        </form>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Weight Chart -->
+<div class="chart-container">
+    <div class="chart-header">
+        <h2>Weight Over Time</h2>
+        <label class="toggle">
+            <input type="checkbox" id="weight-include-superseded">
+            Show readings I've set aside
+        </label>
+    </div>
+    <div class="chart-wrapper">
+        <canvas id="weight-chart"></canvas>
+    </div>
+</div>
+
+<!-- BMI Chart -->
+<div class="chart-container">
+    <div class="chart-header">
+        <h2>BMI Over Time</h2>
+        <label class="toggle">
+            <input type="checkbox" id="bmi-include-superseded">
+            Show readings I've set aside
+        </label>
+    </div>
+    <div class="chart-wrapper">
+        <canvas id="bmi-chart"></canvas>
+    </div>
+</div>
+
+<!-- Manual Weight Entry -->
+<div class="import-section">
+    <h2>Log Weight</h2>
+    <form method="POST" action="{{ url_for('main.log_weight') }}" class="form-inline">
+        <div class="form-group">
+            <label for="weight">Weight (kg)</label>
+            <input type="number" id="weight" name="weight" step="0.1" min="0" required>
+        </div>
+        <div class="form-group">
+            <label for="weight_date">Date</label>
+            <input type="date" id="weight_date" name="weight_date" value="{{ today }}">
+        </div>
+        <button type="submit" class="btn btn-primary">Log Weight</button>
+    </form>
+    {% if person and person.height_cm %}
+    <p class="text-muted">BMI is worked out automatically from your height of {{ "%.0f"|format(person.height_cm) }} cm.</p>
+    {% else %}
+    <p class="text-muted">Set your height below and BMI will be worked out automatically when you log a weight.</p>
+    {% endif %}
+</div>
+
+<!-- Profile Form -->
+<h2>Edit Profile</h2>
+<form method="POST" class="form">
+    <div class="form-group">
+        <label for="first_name">First Name</label>
+        <input type="text" id="first_name" name="first_name" value="{{ person.first_name if person else '' }}">
+    </div>
+    
+    <div class="form-group">
+        <label for="last_name">Last Name</label>
+        <input type="text" id="last_name" name="last_name" value="{{ person.last_name if person else '' }}">
+    </div>
+    
+    <div class="form-group">
+        <label for="birth_date">Birth Date</label>
+        <input type="date" id="birth_date" name="birth_date" value="{{ person.birth_date if person else '' }}">
+    </div>
+    
+    <div class="form-group">
+        <label for="gender">Gender</label>
+        <select id="gender" name="gender">
+            <option value="">Select...</option>
+            <option value="M" {% if person and person.gender == 'M' %}selected{% endif %}>Male</option>
+            <option value="F" {% if person and person.gender == 'F' %}selected{% endif %}>Female</option>
+            <option value="O" {% if person and person.gender == 'O' %}selected{% endif %}>Other</option>
+        </select>
+    </div>
+    
+    <div class="form-group">
+        <label for="height_cm">Height (cm)</label>
+        <input type="number" id="height_cm" name="height_cm" step="0.1" value="{{ person.height_cm if person else '' }}">
+    </div>
+    
+    <button type="submit" class="btn btn-primary">Save Profile</button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.chart-container {
+    margin: 2rem 0;
+}
+.chart-wrapper {
+    position: relative;
+    height: 300px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem;
+}
+
+/* Chart header with the "show set aside" toggle */
+.chart-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.chart-header h2 {
+    margin-bottom: 0.5rem;
+}
+.toggle {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+}
+
+/* Source shown under each current-value card */
+.stat-source {
+    margin: 0.25rem 0 0;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+/* Conflict panel */
+.conflict-panel {
+    margin: 2rem 0;
+    padding: 1rem 1.25rem 1.25rem;
+    border: 1px solid #d97706;
+    border-left-width: 4px;
+    border-radius: var(--radius);
+    background: rgba(217, 119, 6, 0.06);
+}
+.conflict-panel h2 {
+    margin-top: 0;
+    color: #b45309;
+}
+.conflict-intro {
+    margin-bottom: 1.25rem;
+    font-size: 0.92rem;
+}
+.conflict-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.85rem 1rem;
+    margin-bottom: 0.85rem;
+}
+.conflict-card:last-child {
+    margin-bottom: 0;
+}
+.conflict-card h3 {
+    margin: 0 0 0.6rem;
+    font-size: 1rem;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+.conflict-spread {
+    font-weight: normal;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+
+/* The radio choices */
+.choice-form {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+.choice {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    padding: 0.45rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+}
+.choice:hover {
+    border-color: #d97706;
+}
+.choice input {
+    margin-right: 0.15rem;
+}
+.choice-value {
+    font-weight: 600;
+}
+.choice-source,
+.choice-time {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+</style>
+{% endblock %}
