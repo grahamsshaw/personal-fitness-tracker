@@ -225,6 +225,12 @@ without being part of it. A pushed record enriches a workout two ways:
 Open workouts (a guided session still running) match against
 `[started_at, now]`, so live pushes during the session still land.
 
+Day summaries (one row per day with the day's steps, distance and calories)
+count for steps, distance and calories everywhere, but never for minutes:
+a 1439-minute "walk" is background life, not training, and would drown
+every real session in every total. The heatmap, weekly breakdown and
+duration charts all exclude them; the underlying rows are untouched.
+
 When a match is found, enrich the workout. When no match is found, create a new
 `Activity` from the Health Connect data — the commute, the station walk, the
 day's steps all stand alone and count toward the week's activity as

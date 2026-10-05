@@ -96,10 +96,15 @@ def activities_data():
 
     activities = query.order_by(Activity.started_at).all()
 
+    # Day summaries carry the day's steps/distance/calories but their ~24 h
+    # "duration" is not training time — zero it so the duration chart stays
+    # readable. The underlying rows are untouched.
+    from ..services.training_context import is_daily_summary
+
     data = [{
         "date": a.started_at.strftime("%Y-%m-%d"),
         "type": a.activity_type,
-        "duration": a.duration_seconds or 0,
+        "duration": 0 if is_daily_summary(a) else (a.duration_seconds or 0),
         "calories": a.calories or 0,
         "distance": a.distance_m or 0,
     } for a in activities]
@@ -338,9 +343,11 @@ def activity_heatmap():
 
     Workouts and standalone activities both count (linked activities are
     not double-counted — their session is already represented by the
-    workout). Rendered as a GitHub-style year grid client-side.
+    workout; day summaries never count — a 1439-minute "walk" is background
+    life, not training). Rendered as a GitHub-style year grid client-side.
     """
     from ..models import Activity, Workout
+    from ..services.training_context import active_minutes
 
     person = Person.query.first()
     if person is None:
@@ -348,13 +355,6 @@ def activity_heatmap():
 
     start = datetime.now() - timedelta(days=365)
     minutes: dict[str, int] = {}
-
-    def add(started, ended, duration_seconds) -> int:
-        if duration_seconds:
-            return int(duration_seconds // 60)
-        if started and ended:
-            return max(0, int((ended - started).total_seconds() // 60))
-        return 0
 
     linked_ids = {
         workout.activity_id
@@ -366,7 +366,7 @@ def activity_heatmap():
         Workout.person_id == person.id, Workout.started_at >= start
     ).all():
         day = workout.started_at.date().isoformat()
-        minutes[day] = minutes.get(day, 0) + add(
+        minutes[day] = minutes.get(day, 0) + active_minutes(
             workout.started_at, workout.ended_at, workout.duration_seconds)
 
     for activity in Activity.query.filter(
@@ -375,10 +375,11 @@ def activity_heatmap():
         if activity.id in linked_ids:
             continue
         day = activity.started_at.date().isoformat()
-        minutes[day] = minutes.get(day, 0) + add(
-            activity.started_at, activity.ended_at, activity.duration_seconds)
+        minutes[day] = minutes.get(day, 0) + active_minutes(
+            activity.started_at, activity.ended_at, activity.duration_seconds,
+            activity.source_id)
 
-    return jsonify({"days": minutes})
+    return jsonify({"days": {day: total for day, total in minutes.items() if total > 0}})
 
 
 @charts_bp.route("/measurement/<measurement_type>")

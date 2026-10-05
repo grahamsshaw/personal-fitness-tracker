@@ -43,6 +43,53 @@ def _week_bounds(today: date) -> tuple[datetime, datetime]:
     )
 
 
+#: source_id prefixes marking day-summary aggregates (Health Connect daily
+#: rollups from either acquisition path). Summaries carry the day's steps,
+#: distance and calories, but their ~24 h "duration" is not training time.
+DAILY_SUMMARY_PREFIXES = ("hcday:", "hcapp-day:")
+
+
+def is_daily_summary(activity: Activity) -> bool:
+    """Check whether an activity is a day summary rather than a session.
+
+    Day summaries aggregate background life (steps, distance) across the
+    whole day. They count for steps, distance and calories, but never for
+    minutes — a 1439-minute "walk" would otherwise drown every real session
+    in every total.
+
+    Args:
+        activity: The activity row.
+
+    Returns:
+        True for day-summary aggregates.
+    """
+    source_id = activity.source_id or ""
+    return source_id.startswith(DAILY_SUMMARY_PREFIXES)
+
+
+def active_minutes(
+    started, ended, duration_seconds, source_id: str | None = None
+) -> int:
+    """Training minutes for one record, excluding day summaries.
+
+    Args:
+        started: Start datetime, if known.
+        ended: End datetime, if known.
+        duration_seconds: Recorded duration, preferred when present.
+        source_id: The row's source id; day-summary prefixes read zero.
+
+    Returns:
+        Whole minutes of training time.
+    """
+    if source_id and source_id.startswith(DAILY_SUMMARY_PREFIXES):
+        return 0
+    if duration_seconds:
+        return int(duration_seconds // 60)
+    if started and ended:
+        return max(0, int((ended - started).total_seconds() // 60))
+    return 0
+
+
 def weekly_by_source(person_id: int, today: date | None = None) -> dict:
     """Sessions, minutes and calories this week, broken down by source.
 
@@ -83,20 +130,13 @@ def weekly_by_source(person_id: int, today: date | None = None) -> dict:
         if calories:
             entry["calories"] += calories
 
-    def minutes_of(started, ended, duration_seconds) -> int:
-        if duration_seconds:
-            return int(duration_seconds // 60)
-        if started and ended:
-            return max(0, int((ended - started).total_seconds() // 60))
-        return 0
-
     workouts = Workout.query.filter(
         Workout.person_id == person_id, Workout.started_at >= start
     ).all()
     linked_activity_ids = {w.activity_id for w in workouts if w.activity_id}
 
     for workout in workouts:
-        add(workout.source, minutes_of(
+        add(workout.source, active_minutes(
             workout.started_at, workout.ended_at, workout.duration_seconds),
             None)
 
@@ -113,9 +153,9 @@ def weekly_by_source(person_id: int, today: date | None = None) -> dict:
             if activity.calories:
                 entry["calories"] += activity.calories
             continue
-        add(activity.source, minutes_of(
-            activity.started_at, activity.ended_at, activity.duration_seconds),
-            activity.calories)
+        add(activity.source, active_minutes(
+            activity.started_at, activity.ended_at, activity.duration_seconds,
+            activity.source_id), activity.calories)
 
     return {
         "sessions": sum(entry["sessions"] for entry in by_source.values()),
@@ -176,8 +216,11 @@ def recent_sessions(person_id: int, limit: int = 10) -> list[dict]:
             "kind": "activity",
             "name": activity.activity_type,
             "source": activity.source or "manual",
-            "minutes": minutes_of(activity.started_at, activity.ended_at,
-                                  activity.duration_seconds),
+            # Day summaries span the day without training through it;
+            # their minutes read as unknown, not 1439.
+            "minutes": None if is_daily_summary(activity) else minutes_of(
+                activity.started_at, activity.ended_at,
+                activity.duration_seconds),
             "calories": activity.calories,
         })
 
