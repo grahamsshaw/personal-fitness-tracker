@@ -108,6 +108,7 @@ def new_workout():
         "workout_form.html",
         exercises=autocomplete_options(exercises),
         equipment=autocomplete_options(equipment),
+        today=datetime.now().strftime("%Y-%m-%dT%H:%M"),
     )
 
 

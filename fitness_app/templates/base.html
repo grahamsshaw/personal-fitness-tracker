@@ -70,7 +70,9 @@
         <a href="{{ url_for('main.profile') }}">Profile</a>
     </nav>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Chart.js is vendored locally (static/js/chart.umd.min.js) so charts
+         work with no internet beyond the home LAN. See THIRD-PARTY-NOTICES.md. -->
+    <script src="{{ url_for('static', filename='js/chart.umd.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>

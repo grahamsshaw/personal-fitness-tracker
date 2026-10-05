@@ -42,7 +42,7 @@
 
   function loadGeometry() {
     if (!geometryPromise) {
-      geometryPromise = fetch("/static/data/body-paths.json").then((r) => {
+      geometryPromise = fetch("/static/map-data/body-paths.json").then((r) => {
         if (!r.ok) throw new Error("body map geometry not found");
         return r.json();
       });

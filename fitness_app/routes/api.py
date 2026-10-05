@@ -10,15 +10,92 @@ api_bp = Blueprint("api", __name__)
 
 @api_bp.route("/exercises")
 def list_exercises():
-    """List all exercises."""
-    exercises = Exercise.query.order_by(Exercise.name).all()
+    """List exercises, optionally filtered for the picker.
+
+    Query args (all optional, combined with AND):
+        q: case-insensitive name substring.
+        body_part: exact dataset body part (e.g. ``upper legs``).
+        equipment: exact dataset equipment label (e.g. ``dumbbell``).
+        muscle: free-text muscle, normalised to canonical first
+            (``quads`` matches quadriceps work). ``full_body`` is special:
+            exercises involving 3+ distinct muscles.
+
+    Each entry carries ``muscle_count`` (target + secondary distinct
+    canonical muscles) so clients can offer the full-body tab without a
+    second request.
+    """
+    from ..services.muscles import muscles_for_exercise
+
+    query_text = (request.args.get("q") or "").strip()
+    body_part = (request.args.get("body_part") or "").strip().lower()
+    equipment = (request.args.get("equipment") or "").strip().lower()
+    muscle = (request.args.get("muscle") or "").strip()
+
+    pool = Exercise.query
+    if query_text:
+        pool = pool.filter(Exercise.name.ilike(f"%{query_text}%"))
+    if body_part:
+        pool = pool.filter(db.func.lower(Exercise.body_part) == body_part)
+    if equipment:
+        pool = pool.filter(db.func.lower(Exercise.equipment_label) == equipment)
+    exercises = pool.order_by(Exercise.name).limit(500).all()
+
+    entries = []
+    for exercise in exercises:
+        muscles = muscles_for_exercise(exercise)
+        entries.append({
+            "exercise": exercise,
+            "muscles": muscles,
+        })
+
+    if muscle:
+        from ..services.muscles import normalize_muscle
+        if muscle.lower() == "full_body":
+            entries = [entry for entry in entries
+                       if len(entry["muscles"]) >= 3]
+        else:
+            canonical = normalize_muscle(muscle)
+            entries = ([entry for entry in entries
+                        if canonical in entry["muscles"]]
+                       if canonical else [])
+
     return jsonify([{
-        "id": e.id,
-        "name": e.name,
-        "category": e.category,
-        "muscle_group": e.muscle_group,
-        "is_cardio": e.is_cardio,
-    } for e in exercises])
+        "id": entry["exercise"].id,
+        "name": entry["exercise"].name,
+        "category": entry["exercise"].category,
+        "muscle_group": entry["exercise"].muscle_group,
+        "is_cardio": entry["exercise"].is_cardio,
+        "body_part": entry["exercise"].body_part,
+        "equipment_label": entry["exercise"].equipment_label,
+        "target_muscle": entry["exercise"].target_muscle,
+        "muscle_count": len(entry["muscles"]),
+    } for entry in entries])
+
+
+@api_bp.route("/exercise-facets")
+def exercise_facets():
+    """Body-part and equipment tabs for the picker, with counts.
+
+    Only library rows (with dataset metadata) feed the counts — the
+    hand-entered Technogym program rows have no body part and would blur
+    every tab.
+    """
+    rows = Exercise.query.filter(
+        Exercise.body_part.isnot(None)).all()
+    body_parts: dict[str, int] = {}
+    equipment: dict[str, int] = {}
+    for row in rows:
+        if row.body_part:
+            key = row.body_part.strip().lower()
+            body_parts[key] = body_parts.get(key, 0) + 1
+        if row.equipment_label:
+            key = row.equipment_label.strip().lower()
+            equipment[key] = equipment.get(key, 0) + 1
+
+    return jsonify({
+        "body_parts": sorted(body_parts.items()),
+        "equipment": sorted(equipment.items(), key=lambda item: -item[1]),
+    })
 
 
 @api_bp.route("/exercises", methods=["POST"])

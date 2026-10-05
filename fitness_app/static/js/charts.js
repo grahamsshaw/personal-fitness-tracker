@@ -302,16 +302,51 @@ function createCaloriesChart(canvasId, data) {
 
 /**
  * Fetch a body measurement series and draw it, honouring the "show readings
- * I've set aside" toggle.
+ * I've set aside" toggle. A failed load writes an explanation next to the
+ * canvas instead of leaving it silently blank — an empty chart with no
+ * message reads as "no data" when the truth may be "could not load".
  */
 function loadMeasurementChart(canvasId, endpoint, renderer) {
     const toggle = document.getElementById(`${canvasId}-include-superseded`);
     const includeSuperseded = toggle && toggle.checked;
 
+    // Guard: without the chart library (blocked script, corrupt file),
+    // say so once rather than throwing on every chart.
+    if (typeof Chart === 'undefined') {
+        chartError(canvasId, 'Charts unavailable: the chart library did not load.');
+        return;
+    }
+
     fetch(`${endpoint}?include_superseded=${includeSuperseded}`)
-        .then(response => response.json())
-        .then(data => renderer(canvasId, data))
-        .catch(error => console.error(`Error loading ${endpoint}:`, error));
+        .then(response => {
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return response.json();
+        })
+        .then(data => {
+            clearChartError(canvasId);
+            renderer(canvasId, data);
+        })
+        .catch(error => {
+            console.error(`Error loading ${endpoint}:`, error);
+            chartError(canvasId, 'Could not load chart data.');
+        });
+}
+
+/** Show an inline message beside a canvas that failed to draw. */
+function chartError(canvasId, message) {
+    clearChartError(canvasId);
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || !canvas.parentElement) return;
+    const note = document.createElement('p');
+    note.className = 'text-muted chart-error';
+    note.setAttribute('data-chart-error-for', canvasId);
+    note.textContent = message;
+    canvas.parentElement.appendChild(note);
+}
+
+/** Remove a previous load message before a fresh attempt. */
+function clearChartError(canvasId) {
+    document.querySelectorAll(`[data-chart-error-for="${canvasId}"]`).forEach(el => el.remove());
 }
 
 /**

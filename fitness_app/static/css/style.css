@@ -397,6 +397,47 @@ input:focus, select:focus, textarea:focus {
 [data-theme="dark"] .heatmap-cell.h4 { background: #86efac; }
 
 /*
+  Exercise browser (log-workout page)
+  -----------------------------------
+  Search + body-part chips + equipment select + tap-the-muscle map + a
+  short result list. Big touch targets throughout: this panel exists
+  because the old datalist never opened on phone browsers.
+*/
+.chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+.chip {
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+.chip.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+.browse-result {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--border);
+}
+.browse-result span {
+    flex: 1;
+}
+.browse-map .bodymap-svg {
+    height: 220px;
+}
+
+/*
   Themes and responsive layout (Phase 1 redesign)
   ----------------------------------------------
   Light theme is the :root default above. Dark theme overrides the same

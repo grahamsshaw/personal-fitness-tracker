@@ -114,6 +114,13 @@ Then open **http://192.168.0.97:5000**.
 - `__pycache__` / `*.pyc` - excluded from the transfer *and* from the image
   via `.dockerignore`
 
+> **Tar exclude trap.** The transfer uses bsdtar `--exclude` patterns, which
+> match *nested* path components too — a bare `--exclude "data"` once
+> silently stripped `fitness_app/static/data/` from every deploy (the muscle
+> map's geometry 404'd on the Pi while everything else worked). Never name
+> a shipped folder `data` or `backups`, and never add a bare-word exclude
+> without listing a test tar first.
+
 ### Why tar-over-SCP instead of plain `scp -r`
 
 `scp -r fitness_app user@host:/path/` copies *into* an existing folder, which on

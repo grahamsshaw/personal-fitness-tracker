@@ -5,7 +5,7 @@ terms each may be used under. When in doubt, the rule is: ideas are free,
 MIT/Apache pieces need this attribution kept intact, AGPL pieces stay out,
 and anything with unclear ownership stays out.
 
-## Body geometry (`fitness_app/static/data/body-paths.json`)
+## Body geometry (`fitness_app/static/map-data/body-paths.json`)
 
 SVG path data for the muscle map, converted to JSON from
 `frontend/src/lib/body-paths.js` in the openGym reference copy. That file
@@ -82,3 +82,16 @@ are derivative works under other licences and are not imported.
 - **openGym application code** (components, progression engine, importer and
   coach logic): GNU AGPL v3. Ideas and training methodology are reimplemented
   where useful; no AGPL code is copied.
+
+## Chart.js (`fitness_app/static/js/chart.umd.min.js`)
+
+Chart.js v4.4.0, MIT licensed, vendored locally so charts render with no
+internet beyond the home LAN:
+
+```
+The MIT License (MIT)
+Copyright (c) 2014-2024 Chart.js Contributors
+https://github.com/chartjs/Chart.js/blob/master/LICENSE.md
+```
+
+Full text: https://github.com/chartjs/Chart.js/blob/master/LICENSE.md

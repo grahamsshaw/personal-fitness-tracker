@@ -1,8 +1,11 @@
 # Secrets
 .env
 
-# Data (database, imported files, backups) - root folder only, so that
-# fitness_app/static/data (shipped map geometry) is still committed.
+# Data (database, imported files, backups) - root folder only.
+# NOTE: fitness_app/static/map-data (shipped map geometry) must NOT match
+# any exclude: bsdtar matches --exclude patterns against nested path
+# components too, so a bare "data" exclude silently stripped it from
+# deploys. The folder is deliberately not named "data". See DEPLOYMENT.md.
 /data/
 backups/
 *.db
