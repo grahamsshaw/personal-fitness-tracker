@@ -20,6 +20,43 @@
     </div>
 </div>
 
+<!--
+  Walking summary (last 30 days)
+  ------------------------------
+  Walking is where non-gym life shows up — commutes, station walks, trips
+  to the gym. It gets its own numbers (time, distance, steps, calories)
+  rather than dissolving into the totals above.
+-->
+<div class="import-panel">
+    <h2>Walking — last 30 days</h2>
+    {% if walking_summary.sessions %}
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>Sessions</h3>
+            <p class="stat-value">{{ walking_summary.sessions }}</p>
+        </div>
+        <div class="stat-card">
+            <h3>Time</h3>
+            <p class="stat-value">{{ walking_summary.minutes }} min</p>
+        </div>
+        <div class="stat-card">
+            <h3>Distance</h3>
+            <p class="stat-value">{{ walking_summary.km }} km</p>
+        </div>
+        <div class="stat-card">
+            <h3>Steps</h3>
+            <p class="stat-value">{{ walking_summary.steps }}</p>
+        </div>
+        <div class="stat-card">
+            <h3>Calories</h3>
+            <p class="stat-value">{{ walking_summary.calories }}</p>
+        </div>
+    </div>
+    {% else %}
+    <p class="text-muted">No walking recorded in the last 30 days.</p>
+    {% endif %}
+</div>
+
 <div class="chart-container">
     <h2>Activity Duration</h2>
     <div class="chart-wrapper">

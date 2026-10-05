@@ -272,7 +272,7 @@ record re-read, delete its `import_log` row first.
 | `No Wii Fit source folder found.` | The importer could not find any save files. | See [Troubleshooting](#troubleshooting). |
 | `No CSV files in ...` | The Health Connect folder holds no CSV files. | Export from the phone app, or upload them on the import page. |
 | `no Activity.csv found - skipping activity import` | That category was not exported. | Nothing, unless you expected it — re-export with the category ticked. |
-| `N activities matched an existing gym workout and enriched it.` | Health Connect sessions overlapped gym workouts; the workouts gained heart-rate/calorie notes. | Nothing. This is the intended behaviour. |
+| `N activities matched an existing gym workout and enriched it.` | A Health Connect session was the same session as a gym workout (strength-like, or matching the workout's cardio machines), so the workout gained heart-rate/calorie notes. Commutes and day summaries never match — they stand alone. | Nothing. This is the intended behaviour. |
 | `MYWELLNESS_EMAIL / MYWELLNESS_PASSWORD are not set.` | Credentials missing, so the gym portal was not contacted. | Add them to `.env`. |
 | `2026-10-02: Wii Fit recorded 99.5 kg, but 105 kg from technogym on 2026-10-02.` | Two sources disagree about the same day. | Open the profile page and pick which to use. Nothing was overwritten. |
 | `No usable records found in the ... source.` | The source was read but held nothing importable. | Usually means the export is genuinely empty. |

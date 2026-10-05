@@ -80,6 +80,9 @@ class Activity(db.Model):
     duration_seconds = db.Column(db.Integer)
     distance_m = db.Column(db.Float)
     calories = db.Column(db.Float)
+    # Step count, when the source reports one (Health Connect daily
+    # aggregates). First-class so walking is summable without parsing notes.
+    steps = db.Column(db.Integer)
     avg_heart_rate = db.Column(db.Integer)
     max_heart_rate = db.Column(db.Integer)
     notes = db.Column(db.Text)

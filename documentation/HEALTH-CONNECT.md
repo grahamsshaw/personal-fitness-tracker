@@ -209,15 +209,21 @@ same event from two sources.
 
 ### How to match
 
-Match Health Connect activities to existing workouts by:
-1. **Time overlap** — the Health Connect activity overlaps with the workout's
-   start/end time.
-2. **Activity type** — both are "strength training" or similar.
-3. **Duration** — similar duration.
+Overlap alone is not enough — a walk to the gym overlaps the gym visit
+without being part of it. A pushed record enriches a workout only when both
+hold:
+
+1. **Time overlap** — the records' windows overlap (±30 min for clock drift).
+2. **Modality match** — strength-like records match any overlapping workout;
+   locomotion records (walk, run, cycle, row, elliptical) match only when the
+   workout used a machine for that modality (a treadmill run recorded by both
+   sides is one session; a walk to the gym during a weights session is two).
+   Swimming never matches; day-long steps summaries never match.
 
 When a match is found, enrich the workout. When no match is found, create a new
-`Activity` from the Health Connect data (e.g. a walk or run that wasn't logged
-at the gym).
+`Activity` from the Health Connect data — the commute, the station walk, the
+day's steps all stand alone and count toward the week's activity as
+themselves.
 
 ### Wii Fit
 

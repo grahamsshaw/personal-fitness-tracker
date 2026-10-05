@@ -44,30 +44,44 @@ def _week_bounds(today: date) -> tuple[datetime, datetime]:
 
 
 def weekly_by_source(person_id: int, today: date | None = None) -> dict:
-    """Sessions and minutes this week, broken down by source.
+    """Sessions, minutes and calories this week, broken down by source.
 
-    Workouts and activities are both counted — a gym session and a Health
-    Connect walk are both training, and the whole point of unifying sources
-    is that the weekly total reflects both. Minutes come from
-    ``duration_seconds`` where recorded, else from start/end spans.
+    Workouts and standalone activities are both counted — a gym session and
+    a Health Connect walk are both training, and the whole point of unifying
+    sources is that the weekly total reflects both.
+
+    Two rules keep the totals honest:
+
+    - Activities created *for* a workout (the live Technogym importer stores
+      the session's calories on a linked activity) are not counted twice:
+      the workout counts as the session, its linked activity contributes
+      only calories.
+    - Calories come from activity rows only. Workouts carry structure (sets,
+      machines); activities carry physiology (calories, heart rate). Summing
+      both would double-count the same burn, so calories are the common
+      currency measured in exactly one place.
 
     Args:
         person_id: Whose week to measure.
         today: Reference day. Defaults to today.
 
     Returns:
-        Dict with ``sessions``, ``minutes`` and ``by_source`` mapping each
-        source to its ``{"sessions": n, "minutes": m}``.
+        Dict with ``sessions``, ``minutes``, ``calories`` and ``by_source``
+        mapping each source to its totals.
     """
     today = today or date.today()
     start, _end = _week_bounds(today)
 
-    by_source: dict[str, dict[str, int]] = {}
+    by_source: dict[str, dict[str, float]] = {}
 
-    def add(source: str, minutes: int) -> None:
-        entry = by_source.setdefault(source or "manual", {"sessions": 0, "minutes": 0})
+    def add(source: str, minutes: int, calories: float | None) -> None:
+        entry = by_source.setdefault(
+            source or "manual", {"sessions": 0, "minutes": 0, "calories": 0.0}
+        )
         entry["sessions"] += 1
         entry["minutes"] += minutes
+        if calories:
+            entry["calories"] += calories
 
     def minutes_of(started, ended, duration_seconds) -> int:
         if duration_seconds:
@@ -76,22 +90,45 @@ def weekly_by_source(person_id: int, today: date | None = None) -> dict:
             return max(0, int((ended - started).total_seconds() // 60))
         return 0
 
-    for workout in Workout.query.filter(
+    workouts = Workout.query.filter(
         Workout.person_id == person_id, Workout.started_at >= start
-    ).all():
-        add(workout.source,
-            minutes_of(workout.started_at, workout.ended_at, workout.duration_seconds))
+    ).all()
+    linked_activity_ids = {w.activity_id for w in workouts if w.activity_id}
+
+    for workout in workouts:
+        add(workout.source, minutes_of(
+            workout.started_at, workout.ended_at, workout.duration_seconds),
+            None)
 
     for activity in Activity.query.filter(
         Activity.person_id == person_id, Activity.started_at >= start
     ).all():
-        add(activity.source,
-            minutes_of(activity.started_at, activity.ended_at, activity.duration_seconds))
+        if activity.id in linked_activity_ids:
+            # The session is already counted via its workout; only the
+            # calories (which live on this row) still count.
+            entry = by_source.setdefault(
+                activity.source or "manual",
+                {"sessions": 0, "minutes": 0, "calories": 0.0},
+            )
+            if activity.calories:
+                entry["calories"] += activity.calories
+            continue
+        add(activity.source, minutes_of(
+            activity.started_at, activity.ended_at, activity.duration_seconds),
+            activity.calories)
 
     return {
         "sessions": sum(entry["sessions"] for entry in by_source.values()),
         "minutes": sum(entry["minutes"] for entry in by_source.values()),
-        "by_source": by_source,
+        "calories": round(sum(entry["calories"] for entry in by_source.values())),
+        "by_source": {
+            source: {
+                "sessions": entry["sessions"],
+                "minutes": entry["minutes"],
+                "calories": round(entry["calories"]),
+            }
+            for source, entry in by_source.items()
+        },
     }
 
 

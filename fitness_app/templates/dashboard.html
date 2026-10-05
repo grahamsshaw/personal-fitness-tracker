@@ -36,6 +36,7 @@
         {% if week_breakdown and week_breakdown.by_source %}
             <p class="stat-source">
                 {% for source, totals in week_breakdown.by_source.items() %}{{ source }}: {{ totals.sessions }}{% if not loop.last %}, {% endif %}{% endfor %}
+                &middot; {{ week_breakdown.calories }} kcal
             </p>
         {% endif %}
     </div>

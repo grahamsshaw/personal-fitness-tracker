@@ -256,6 +256,24 @@ def _migrate_workout_sets(connection) -> bool:
     return changed
 
 
+def _migrate_activity_steps(connection) -> bool:
+    """Add the step-count column to the activities table.
+
+    Daily aggregates from Health Connect carry steps; storing them as a
+    number (rather than inside the notes text) keeps walking summable for
+    charts, the weekly breakdown and the future assistant.
+
+    Args:
+        connection: An open SQLAlchemy connection.
+
+    Returns:
+        True if anything changed.
+    """
+    return _ensure_column(
+        connection, "activities", "steps", "INTEGER"
+    )
+
+
 #: Migrations applied in order at start-up. Each must be idempotent.
 MIGRATIONS = (
     _migrate_body_measurements,
@@ -264,6 +282,7 @@ MIGRATIONS = (
     _migrate_exercises,
     _migrate_person_goal,
     _migrate_workout_sets,
+    _migrate_activity_steps,
 )
 
 

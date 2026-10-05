@@ -10,10 +10,14 @@ Connect equivalent of an importer, sharing the same rules:
 - **Idempotent** — every record carries the Health Connect UID as ``source_id``,
   checked against ``import_log`` before anything is written. Re-pushes are
   skipped, never duplicated.
-- **Workouts enrich, never duplicate** — a gym workout *causes* the activity
-  Health Connect sees. When a pushed activity overlaps a gym workout in time,
-  the workout is enriched (heart rate, calories, a note naming the source)
-  instead of creating a second record of the same session.
+- **Workouts enrich, never duplicate** — a gym workout *causes* some of the
+  activity Health Connect sees. When a pushed record is *compatible* with an
+  overlapping gym workout (strength-like, or locomotion matching the
+  workout's machines), the workout is enriched (heart rate, calories, a note
+  naming the source) instead of creating a second record of the same
+  session. Anything else — a walk to the gym, a station commute, a day-long
+  steps summary — stands alone and counts toward the week's activity as
+  itself. Overlap alone never merges.
 - **Conflicts are reported, not resolved** — a pushed weight that disagrees
   with another source for the same day goes through the same
   ``services/measurements.py`` check as every other source.
@@ -180,27 +184,77 @@ def classify_exercise(exercise_type: str | None) -> str:
     return "gym"
 
 
+#: Health Connect activity type -> machine-name fragments identifying the gym
+#: equipment that would produce it. Used to decide whether an overlapping
+#: phone record is the *same session* as a gym workout or a *separate*
+#: activity that merely happened nearby in time (walking to the gym, for
+#: example). Matching is deliberately conservative: a commute must never be
+#: folded into a workout.
+#:
+#: - Strength-like records (``gym``) match any overlapping workout — the
+#:   phone saw the session's physiology.
+#: - Locomotion records match only when the workout used a machine for that
+#:   modality (a treadmill run recorded by both sides is one session; a walk
+#:   to the gym during a weights session is two).
+#: - ``swimming`` has no gym counterpart and never matches.
+#: - Daily step aggregates (``steps``) span the whole day and never match —
+#:   a day-long window overlapping a workout is meaningless.
+CARDIO_MACHINE_KEYWORDS = {
+    "running": ("run", "treadmill"),
+    "walking": ("treadmill",),
+    "cycling": ("bike", "cycle"),
+    "rowing": ("row",),
+    "elliptical": ("ellipt", "synchro"),
+    "swimming": (),
+}
+
+
+def _workout_machine_names(workout: Workout) -> list[str]:
+    """Lowercased machine/equipment names used in a workout.
+
+    Args:
+        workout: The workout to inspect.
+
+    Returns:
+        Distinct non-empty names, lowercased.
+    """
+    names = set()
+    for exercise in workout.exercises:
+        for raw in (exercise.machine, exercise.equipment_name):
+            if raw and raw.strip():
+                names.add(raw.strip().lower())
+    return sorted(names)
+
+
 def find_overlapping_workout(
     person_id: int,
     started_at: datetime,
     ended_at: datetime | None,
+    activity_type: str = "gym",
+    is_aggregate: bool = False,
 ) -> Workout | None:
-    """Find a gym workout that overlaps a pushed activity window.
+    """Find the gym workout a pushed activity belongs to, if any.
 
-    The pushed activity and the workout are the same session seen from two
-    sides: the gym kiosk recorded the structure, the phone recorded the
-    physiology. Overlap (with tolerance for clock drift) is the match —
-    matching on calories or exact duration would be fragile, since the two
-    sources measure different things.
+    Overlap alone is not enough: a walk to the gym overlaps the gym visit
+    without being part of it. The activity must also be *compatible* — a
+    strength-like record, or a locomotion record whose modality appears
+    among the workout's machines.
 
     Args:
         person_id: Whose workouts to search.
         started_at: Start of the pushed activity.
         ended_at: End of the pushed activity, if known.
+        activity_type: Classified activity type (``gym``, ``walking`` …).
+        is_aggregate: True for day-spanning summaries (daily steps), which
+            never match anything.
 
     Returns:
-        The overlapping workout, or None.
+        The compatible overlapping workout, or None when the activity
+        stands on its own.
     """
+    if is_aggregate:
+        return None
+
     window_end = ended_at or started_at
 
     candidates = Workout.query.filter(
@@ -213,9 +267,23 @@ def find_overlapping_workout(
         if workout_end is None:
             continue
         # Windows overlap when each starts before the other ends, widened by
-        # the tolerance in both directions.
-        if (workout.started_at.timestamp() <= window_end.timestamp() + OVERLAP_TOLERANCE_SECONDS
-                and workout_end.timestamp() >= started_at.timestamp() - OVERLAP_TOLERANCE_SECONDS):
+        # the tolerance in both directions for clock drift.
+        overlaps = (
+            workout.started_at.timestamp() <= window_end.timestamp() + OVERLAP_TOLERANCE_SECONDS
+            and workout_end.timestamp() >= started_at.timestamp() - OVERLAP_TOLERANCE_SECONDS
+        )
+        if not overlaps:
+            continue
+
+        if activity_type == "gym":
+            return workout
+
+        keywords = CARDIO_MACHINE_KEYWORDS.get(activity_type)
+        if not keywords:
+            # Unknown-or-impossible modality (e.g. swimming): separate.
+            continue
+        machines = _workout_machine_names(workout)
+        if any(keyword in machine for machine in machines for keyword in keywords):
             return workout
 
     return None
@@ -284,10 +352,11 @@ def _process_activity(
 ) -> None:
     """Store a pushed exercise or steps record, enriching on overlap.
 
-    When the pushed window overlaps a gym workout, the workout is enriched
-    (heart rate, calories, a note) and the pushed record is still stored as
-    an activity linked to it — both sides of the session are kept, with the
-    link recorded in ``enrichment_data``.
+    When the pushed record is compatible with an overlapping gym workout
+    (see :func:`find_overlapping_workout`), the workout is enriched (heart
+    rate, calories, a note) and the pushed record is still stored as an
+    activity linked to it. Commutes, station walks and daily summaries never
+    match: they are stored plain and count as their own activity.
 
     Args:
         record: The pushed record.
@@ -326,6 +395,10 @@ def _process_activity(
         except (TypeError, ValueError):
             return None
 
+    def _integer(value: Any) -> int | None:
+        number = _number(value)
+        return None if number is None else int(number)
+
     activity = Activity(
         person_id=person.id,
         activity_type=activity_type,
@@ -334,6 +407,7 @@ def _process_activity(
         duration_seconds=duration_seconds,
         distance_m=_number(record.get("distance_m")),
         calories=_number(record.get("calories")),
+        steps=_integer(record.get("steps")),
         avg_heart_rate=record.get("avg_heart_rate"),
         max_heart_rate=record.get("max_heart_rate"),
         notes=notes,
@@ -343,9 +417,15 @@ def _process_activity(
     db.session.add(activity)
     db.session.flush()
 
-    # A gym workout overlapping this window is the same session: enrich it
-    # rather than leaving two unconnected records.
-    workout = find_overlapping_workout(person.id, started_at, ended_at)
+    # A compatible gym workout overlapping this window is the same session:
+    # enrich it rather than leaving two unconnected records. Anything else —
+    # a commute, a station walk, a day-long steps summary — stands on its own
+    # and counts toward the week's activity as itself.
+    workout = find_overlapping_workout(
+        person.id, started_at, ended_at,
+        activity_type=activity_type,
+        is_aggregate=(record_kind == "steps"),
+    )
     if workout is not None:
         enrichment = {
             "health_connect_activity_id": activity.id,
