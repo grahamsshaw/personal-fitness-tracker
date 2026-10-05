@@ -368,6 +368,141 @@ input:focus, select:focus, textarea:focus {
     margin: 1rem 0;
 }
 
+/*
+  Themes and responsive layout (Phase 1 redesign)
+  ----------------------------------------------
+  Light theme is the :root default above. Dark theme overrides the same
+  variables. Accent colours are applied by theme.js setting --primary
+  inline; every accent-coloured element must use var(--primary) so a single
+  override recolours the app.
+*/
+[data-theme="dark"] {
+    --bg: #0f172a;
+    --card-bg: #1e293b;
+    --text: #e2e8f0;
+    --text-muted: #94a3b8;
+    --border: #334155;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .bodymap-svg .bm-sil {
+    fill: #334155;
+    stroke: #64748b;
+}
+
+[data-theme="dark"] .bodymap-svg .bm-m {
+    stroke: #cbd5e1;
+}
+
+[data-theme="dark"] .bodymap-svg .bm-m.m0 { fill: #1e293b; }
+
+/* Theme toggle in the navbar */
+.theme-toggle {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 1.1rem;
+    line-height: 1;
+    padding: 0.35rem 0.6rem;
+}
+
+/* Accent swatches (profile appearance card) */
+.accent-row {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    margin-top: 0.5rem;
+}
+.accent-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    padding: 0;
+}
+.accent-dot.active {
+    border-color: var(--text);
+}
+
+/* Goal progress bar */
+.progress {
+    height: 10px;
+    border-radius: 999px;
+    background: var(--border);
+    overflow: hidden;
+    margin-top: 0.5rem;
+}
+.progress > span {
+    display: block;
+    height: 100%;
+    background: var(--primary);
+    border-radius: 999px;
+}
+
+/* Bottom tab bar: phones only, mirrors the key destinations */
+.bottom-nav {
+    display: none;
+}
+
+@media (max-width: 720px) {
+    .container {
+        padding: 1rem;
+        padding-bottom: 5rem; /* room for the tab bar */
+    }
+
+    .navbar {
+        padding: 0.75rem 1rem;
+    }
+
+    .nav-links {
+        display: none;
+    }
+
+    .bottom-nav {
+        display: flex;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 100;
+        background: var(--card-bg);
+        border-top: 1px solid var(--border);
+        justify-content: space-around;
+        padding: 0.4rem 0 calc(0.4rem + env(safe-area-inset-bottom));
+    }
+
+    .bottom-nav a {
+        color: var(--text-muted);
+        text-decoration: none;
+        font-size: 0.72rem;
+        font-weight: 600;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        padding: 0.25rem 0.5rem;
+    }
+
+    .bottom-nav a.active {
+        color: var(--primary);
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .bodymap-svg {
+        height: 320px;
+    }
+
+    .import-actions {
+        gap: 1rem;
+    }
+}
+
 /* Pagination */
 .pagination {
     display: flex;

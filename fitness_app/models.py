@@ -14,6 +14,7 @@ class Person(db.Model):
     birth_date = db.Column(db.Integer)  # YYYYMMDD format
     gender = db.Column(db.String(10))
     height_cm = db.Column(db.Float)
+    weight_goal_kg = db.Column(db.Float)  # target weight; drives goal progress
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships

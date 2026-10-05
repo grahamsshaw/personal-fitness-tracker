@@ -33,26 +33,59 @@ def source_label(source: str) -> str:
 def dashboard():
     """Main dashboard."""
     person = Person.query.first()
-    
+
     # Recent workouts
     recent_workouts = Workout.query.order_by(Workout.started_at.desc()).limit(5).all()
-    
+
     # Recent activities
     recent_activities = Activity.query.order_by(Activity.started_at.desc()).limit(10).all()
-    
+
     # Latest weight
     latest_weight = BodyMeasurement.query.filter_by(
         measurement_type="weight"
     ).order_by(BodyMeasurement.measured_at.desc()).first()
-    
+
     # Last gym visit
     last_gym = Workout.query.order_by(Workout.started_at.desc()).first()
-    
+
     # Stats
     total_workouts = Workout.query.count()
     total_exercises = Exercise.query.count()
     total_equipment = Equipment.query.count()
-    
+
+    # This week's sessions (Monday to now).
+    today = datetime.now().date()
+    week_start = today - timedelta(days=today.weekday())
+    week_workouts = Workout.query.filter(
+        Workout.started_at >= datetime.combine(week_start, datetime.min.time())
+    ).count()
+
+    # Goal progress. The baseline is the highest weight in the last 180
+    # days — the honest "started from" proxy, captioned as such below.
+    # At or past the goal reads full; with no goal there is no bar.
+    goal_progress = None
+    if person is not None and person.weight_goal_kg and latest_weight:
+        heaviest = db.session.query(
+            db.func.max(BodyMeasurement.value)
+        ).filter(
+            BodyMeasurement.measurement_type == "weight",
+            BodyMeasurement.measured_at >= datetime.now() - timedelta(days=180),
+        ).scalar()
+        goal = person.weight_goal_kg
+        current = latest_weight.value
+        if current <= goal:
+            goal_progress = 100
+        elif heaviest and heaviest > goal:
+            goal_progress = round(
+                max(0, (heaviest - current) / (heaviest - goal)) * 100
+            )
+
+    # Muscles with no training in the last 90 days (top 3 + link).
+    from ..services import muscles as muscle_service
+    neglected = (
+        muscle_service.neglected_muscles(person.id)[:3] if person else []
+    )
+
     return render_template(
         "dashboard.html",
         person=person,
@@ -63,6 +96,9 @@ def dashboard():
         total_workouts=total_workouts,
         total_exercises=total_exercises,
         total_equipment=total_equipment,
+        week_workouts=week_workouts,
+        goal_progress=goal_progress,
+        neglected=neglected,
     )
 
 
@@ -80,6 +116,7 @@ def profile():
         person.last_name = request.form.get("last_name", "")
         person.gender = request.form.get("gender", "")
         person.height_cm = float(request.form.get("height_cm", 0)) if request.form.get("height_cm") else None
+        person.weight_goal_kg = float(request.form.get("weight_goal_kg", 0)) if request.form.get("weight_goal_kg") else None
         
         birth_date_str = request.form.get("birth_date", "")
         if birth_date_str:

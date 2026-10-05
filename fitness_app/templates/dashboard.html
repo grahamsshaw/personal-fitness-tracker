@@ -6,7 +6,24 @@
 <h1>Dashboard</h1>
 
 {% if person %}
+<!--
+  Today card: the last session and this week's count. Answers "what have I
+  done lately" at a glance, the way a training app home screen should.
+-->
 <div class="stats-grid">
+    <div class="stat-card">
+        <h3>Last session</h3>
+        <p class="stat-value">
+            {% if last_gym %}
+                {{ last_gym.started_at.strftime('%a %d %b') }}
+            {% else %}
+                --
+            {% endif %}
+        </p>
+        {% if last_gym %}
+            <p class="stat-source">{{ last_gym.workout_name or 'Workout' }} &middot; {{ week_workouts }} this week</p>
+        {% endif %}
+    </div>
     <div class="stat-card">
         <h3>Weight</h3>
         <p class="stat-value">
@@ -16,18 +33,30 @@
                 --
             {% endif %}
         </p>
+        {% if person.weight_goal_kg and latest_weight %}
+            <p class="stat-source">
+                Goal {{ "%.1f"|format(person.weight_goal_kg) }} kg
+                &middot; {{ "%.1f"|format(latest_weight.value - person.weight_goal_kg) }} kg to go
+            </p>
+            {% if goal_progress is not none %}
+            <div class="progress" title="From your highest weight in the last 6 months">
+                <span style="width: {{ goal_progress }}%"></span>
+            </div>
+            {% endif %}
+        {% elif latest_weight %}
+            <p class="stat-source">Set a goal on the <a href="{{ url_for('main.profile') }}">profile page</a></p>
+        {% endif %}
     </div>
     <div class="stat-card">
         <h3>Total Workouts</h3>
         <p class="stat-value">{{ total_workouts }}</p>
     </div>
     <div class="stat-card">
-        <h3>Exercises</h3>
-        <p class="stat-value">{{ total_exercises }}</p>
-    </div>
-    <div class="stat-card">
-        <h3>Equipment</h3>
-        <p class="stat-value">{{ total_equipment }}</p>
+        <h3>Neglected</h3>
+        <p class="stat-value">{{ neglected|length }}</p>
+        {% if neglected %}
+            <p class="stat-source"><a href="{{ url_for('main.muscles') }}">See what needs training</a></p>
+        {% endif %}
     </div>
 </div>
 

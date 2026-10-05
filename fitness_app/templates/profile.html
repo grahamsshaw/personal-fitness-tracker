@@ -181,9 +181,31 @@
         <label for="height_cm">Height (cm)</label>
         <input type="number" id="height_cm" name="height_cm" step="0.1" value="{{ person.height_cm if person else '' }}">
     </div>
-    
+
+    <div class="form-group">
+        <label for="weight_goal_kg">Weight goal (kg, optional)</label>
+        <input type="number" id="weight_goal_kg" name="weight_goal_kg" step="0.1" value="{{ person.weight_goal_kg if person and person.weight_goal_kg else '' }}">
+    </div>
+
     <button type="submit" class="btn btn-primary">Save Profile</button>
 </form>
+
+<!-- Appearance (this device only) -->
+<h2>Appearance</h2>
+<p class="text-muted">Light or dark, and an accent colour. Stored on this device only.</p>
+<div class="form-group">
+    <button id="theme-auto" class="btn btn-secondary" type="button">Follow system</button>
+</div>
+<div class="form-group">
+    <label>Accent colour</label>
+    <div class="accent-row">
+        <button type="button" class="accent-dot" data-accent-pick="blue" aria-label="Blue accent"></button>
+        <button type="button" class="accent-dot" data-accent-pick="green" aria-label="Green accent"></button>
+        <button type="button" class="accent-dot" data-accent-pick="orange" aria-label="Orange accent"></button>
+        <button type="button" class="accent-dot" data-accent-pick="purple" aria-label="Purple accent"></button>
+        <button type="button" class="accent-dot" data-accent-pick="rose" aria-label="Rose accent"></button>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}

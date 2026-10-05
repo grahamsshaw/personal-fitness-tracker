@@ -197,12 +197,30 @@ def _migrate_exercises(connection) -> bool:
     return changed
 
 
+def _migrate_person_goal(connection) -> bool:
+    """Add the weight-goal column to the person table.
+
+    Drives goal progress on the dashboard. Nullable: no goal set reads as
+    "no goal", never as zero.
+
+    Args:
+        connection: An open SQLAlchemy connection.
+
+    Returns:
+        True if anything changed.
+    """
+    return _ensure_column(
+        connection, "person", "weight_goal_kg", "FLOAT"
+    )
+
+
 #: Migrations applied in order at start-up. Each must be idempotent.
 MIGRATIONS = (
     _migrate_body_measurements,
     _migrate_equipment_profiles,
     _migrate_sleep_records,
     _migrate_exercises,
+    _migrate_person_goal,
 )
 
 

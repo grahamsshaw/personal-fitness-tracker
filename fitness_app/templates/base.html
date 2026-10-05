@@ -5,6 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Fitness Tracker{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!--
+      Theme pre-paint: apply the stored theme before anything renders so
+      there is no light-flash on load. The full logic lives in theme.js;
+      this is intentionally the same two lookups, kept tiny and dependency-free.
+    -->
+    <script>
+    (function () {
+      try {
+        var accents = { blue: "#2563eb", green: "#16a34a", orange: "#ea580c", purple: "#9333ea", rose: "#e11d48" };
+        var stored = localStorage.getItem("ft-theme");
+        var dark = stored === "dark" || (stored !== "light" &&
+          window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+        var accent = localStorage.getItem("ft-accent") || "blue";
+        if (!accents[accent]) accent = "blue";
+        document.documentElement.setAttribute("data-accent", accent);
+        document.documentElement.style.setProperty("--primary", accents[accent]);
+      } catch (e) { /* Defaults stand. */ }
+    })();
+    </script>
 </head>
 <body>
     <nav class="navbar">
@@ -21,6 +41,7 @@
             <a href="{{ url_for('imports.import_dashboard') }}">Import</a>
             <a href="{{ url_for('main.profile') }}">Profile</a>
         </div>
+        <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">☀</button>
     </nav>
     
     <main class="container">
@@ -38,10 +59,20 @@
     <footer class="footer">
         <p>Fitness Tracker &copy; 2026</p>
     </footer>
-    
+
+    <!-- Bottom tab bar: phones only (see the max-width media query). -->
+    <nav class="bottom-nav" aria-label="Primary">
+        <a href="{{ url_for('main.dashboard') }}">Home</a>
+        <a href="{{ url_for('workouts.new_workout') }}">Log</a>
+        <a href="{{ url_for('main.muscles') }}">Muscles</a>
+        <a href="{{ url_for('imports.import_dashboard') }}">Import</a>
+        <a href="{{ url_for('main.profile') }}">Profile</a>
+    </nav>
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>
