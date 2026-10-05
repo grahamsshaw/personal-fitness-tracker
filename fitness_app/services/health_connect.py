@@ -48,8 +48,15 @@ from typing import Any
 from ..models import db, Activity, BodyMeasurement, ImportLog, Person, Workout
 from .measurements import derive_bmi, supersede_mismatches_within_day, describe_conflict
 
-#: Source key used in ``import_log`` and on every created row.
+#: Source key used in ``import_log`` and on every created row by the push
+#: endpoint. The CSV importer passes its own source instead — see
+#: :func:`process_records`.
 SOURCE = "health_connect"
+
+#: Source key for rows created from Health Data Export CSV files. Kept
+#: distinct from the push endpoint's key because the acquisition path matters
+#: when debugging: a suspicious row should answer "which file, or which push".
+CSV_SOURCE = "health_connect_csv"
 
 #: Record types this module accepts.
 RECORD_TYPES = ("weight", "exercise", "steps")
@@ -66,6 +73,7 @@ EXERCISE_TYPE_MAP = {
     "bik": "cycling",
     "swim": "swimming",
     "row": "rowing",
+    "ellipt": "elliptical",
     "yoga": "yoga",
     "pilat": "pilates",
 }
@@ -105,39 +113,53 @@ def parse_time(raw: str | None) -> datetime | None:
     return parsed
 
 
-def already_imported(source_id: str, record_type: str) -> bool:
+def already_imported(source: str, source_id: str, record_type: str) -> bool:
     """Check whether a Health Connect record was already stored.
 
     Args:
-        source_id: The Health Connect UID for the record.
+        source: Source key (push endpoint or CSV importer).
+        source_id: The stable UID for the record.
         record_type: One of ``weight``, ``activity``.
 
     Returns:
         True when an ``import_log`` row exists for this key.
     """
     return ImportLog.query.filter_by(
-        source=SOURCE,
+        source=source,
         source_id=source_id,
         record_type=record_type,
     ).first() is not None
 
 
-def _log(source_id: str, record_type: str, record_id: int, action: str) -> None:
+def _log(source: str, source_id: str, record_type: str, record_id: int, action: str) -> None:
     """Write one ``import_log`` row.
 
     Args:
-        source_id: The Health Connect UID.
+        source: Source key.
+        source_id: The stable UID.
         record_type: ``weight`` or ``activity``.
         record_id: Primary key of the created row.
         action: ``created``, ``skipped`` or ``enriched``.
     """
     db.session.add(ImportLog(
-        source=SOURCE,
+        source=source,
         source_id=source_id,
         record_type=record_type,
         record_id=record_id,
         action=action,
     ))
+
+
+def _source_label(source: str) -> str:
+    """Human name for a source key in conflict messages.
+
+    Args:
+        source: ``health_connect`` or ``health_connect_csv``.
+
+    Returns:
+        e.g. ``"Health Connect (CSV)"``.
+    """
+    return "Health Connect (CSV)" if source == CSV_SOURCE else "Health Connect"
 
 
 def classify_exercise(exercise_type: str | None) -> str:
@@ -200,13 +222,14 @@ def find_overlapping_workout(
 
 
 def _process_weight(
-    record: dict[str, Any], person: Person, result: dict
+    record: dict[str, Any], person: Person, source: str, result: dict
 ) -> None:
     """Store a pushed weight, plus derived BMI when height is known.
 
     Args:
         record: The pushed record.
         person: Whose weight this is.
+        source: Source key for created rows and the import log.
         result: Running totals to update in place.
     """
     try:
@@ -225,7 +248,7 @@ def _process_weight(
         measurement_type="weight",
         value=weight_kg,
         unit="kg",
-        source=SOURCE,
+        source=source,
         source_id=record["source_id"],
     )
     db.session.add(measurement)
@@ -241,23 +264,23 @@ def _process_weight(
             measurement_type="bmi",
             value=bmi,
             unit="",
-            source=SOURCE,
+            source=source,
             source_id=record["source_id"],
         ))
 
-    _log(record["source_id"], "weight", measurement.id, "created")
+    _log(source, record["source_id"], "weight", measurement.id, "created")
     result["imported"] += 1
 
     # Same rule as every other source: report disagreement, resolve nothing.
     for other_id in supersede_mismatches_within_day(measurement):
         other = db.session.get(BodyMeasurement, other_id)
         result["conflicts"].append(describe_conflict(
-            measurement, other, new_label="Health Connect",
+            measurement, other, new_label=_source_label(source),
         ))
 
 
 def _process_activity(
-    record: dict[str, Any], person: Person, result: dict
+    record: dict[str, Any], person: Person, source: str, result: dict
 ) -> None:
     """Store a pushed exercise or steps record, enriching on overlap.
 
@@ -269,6 +292,7 @@ def _process_activity(
     Args:
         record: The pushed record.
         person: Whose activity this is.
+        source: Source key for created rows and the import log.
         result: Running totals to update in place.
     """
     record_kind = record["type"]
@@ -313,7 +337,7 @@ def _process_activity(
         avg_heart_rate=record.get("avg_heart_rate"),
         max_heart_rate=record.get("max_heart_rate"),
         notes=notes,
-        source=SOURCE,
+        source=source,
         source_id=record["source_id"],
     )
     db.session.add(activity)
@@ -340,7 +364,7 @@ def _process_activity(
         })
 
         stamp = (
-            f"Health Connect recorded {activity_type} "
+            f"{_source_label(source)} recorded {activity_type} "
             f"{started_at:%Y-%m-%d %H:%M}"
         )
         if activity.avg_heart_rate:
@@ -350,25 +374,29 @@ def _process_activity(
         stamp += "."
         workout.notes = f"{workout.notes}\n{stamp}" if workout.notes else stamp
 
-        _log(record["source_id"], "activity", activity.id, "enriched")
+        _log(source, record["source_id"], "activity", activity.id, "enriched")
         result["enriched"] += 1
     else:
-        _log(record["source_id"], "activity", activity.id, "created")
+        _log(source, record["source_id"], "activity", activity.id, "created")
 
     result["imported"] += 1
 
 
 def process_records(
-    records: list[dict[str, Any]], person_id: int | None = None
+    records: list[dict[str, Any]],
+    person_id: int | None = None,
+    source: str = SOURCE,
 ) -> dict[str, Any]:
-    """Store pushed Health Connect records.
+    """Store Health Connect records from either acquisition path.
 
-    Idempotent: records already in ``import_log`` are skipped, so the phone
-    app can push the same window repeatedly without creating duplicates.
+    Idempotent: records already in ``import_log`` are skipped, so the same
+    window can be pushed or re-imported repeatedly without duplicates.
 
     Args:
-        records: Pushed record dicts (see module docstring for shape).
+        records: Record dicts (see module docstring for shape).
         person_id: Whose data this is. Defaults to the first Person row.
+        source: Source key for created rows. The push endpoint uses
+            ``health_connect``; the CSV importer uses ``health_connect_csv``.
 
     Returns:
         Dict with ``imported``, ``skipped``, ``enriched``, ``conflicts``
@@ -408,14 +436,14 @@ def process_records(
             continue
 
         log_type = "weight" if record_type == "weight" else "activity"
-        if already_imported(source_id, log_type):
+        if already_imported(source, source_id, log_type):
             result["skipped"] += 1
             continue
 
         if record_type == "weight":
-            _process_weight(record, person, result)
+            _process_weight(record, person, source, result)
         else:
-            _process_activity(record, person, result)
+            _process_activity(record, person, source, result)
 
     db.session.commit()
     return result

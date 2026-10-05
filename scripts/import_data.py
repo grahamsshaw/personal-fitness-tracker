@@ -282,6 +282,7 @@ def _dry_run(sources: list[str], log) -> int:
         Count of unreachable sources.
     """
     from fitness_app.importers.wii_fit import WiiFitImporter
+    from fitness_app.importers.health_connect_csv import HealthConnectCsvImporter
 
     unreachable = 0
 
@@ -307,6 +308,15 @@ def _dry_run(sources: list[str], log) -> int:
                 "credentials present"
                 if ok
                 else "MYWELLNESS_EMAIL / MYWELLNESS_PASSWORD not set"
+            )
+        elif source == "health_connect_csv":
+            importer = HealthConnectCsvImporter()
+            files = importer.find_csv_files()
+            ok = importer.is_available()
+            detail = (
+                f"{len(files)} CSV file(s) in {importer.data_dir}"
+                if ok
+                else f"no CSV files in {importer.data_dir}"
             )
         else:
             export_dir = PROJECT_ROOT / "data" / "technogym_export"

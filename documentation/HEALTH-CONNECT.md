@@ -293,6 +293,12 @@ GET /api/health-connect/status
    - CSV keeps the data at home; Google Sheets would hand it to Google and
      need Sheets API credentials on the Pi for no benefit.
    - A custom phone app is only worth building if this proves inadequate.
+   - ~~Build the CSV importer~~ — **done**: `importers/health_connect_csv.py`
+     reads `Activity.csv`/`Sleep.csv`/`Vitals.csv` from
+     `data/health_data_export/`, reuses the push endpoint's processing
+     (idempotency, workout enrichment, conflict reporting), stores sleep in
+     `sleep_records`, and is wired into `import_data.py`, the upload route and
+     the scheduled run. Verified against a real 31-day export.
 1. **Confirm data origins** — on the phone, open Health Connect → see which
    apps contribute weight, exercise, steps, heart rate.
 2. ~~**Build the Pi endpoint**~~ — **done**: `POST /api/health-connect/push`

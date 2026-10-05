@@ -191,6 +191,36 @@ class EquipmentProfile(db.Model):
         return f"<EquipmentProfile {self.name or self.machine_type}>"
 
 
+class SleepRecord(db.Model):
+    """Sleep sessions, currently from Health Connect CSV exports.
+
+    The Fit3 fragments sleep into several sessions per night and rarely
+    reports REM, so rows are stored as-reported — one row per session, never
+    merged. Merging fragmented nights is a presentation concern, not a storage
+    one; the raw sessions must survive for the charts to be honest.
+    """
+    __tablename__ = "sleep_records"
+
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.Integer, db.ForeignKey("person.id"), nullable=False)
+    started_at = db.Column(db.DateTime, nullable=False)
+    ended_at = db.Column(db.DateTime)
+    light_min = db.Column(db.Integer)
+    deep_min = db.Column(db.Integer)
+    rem_min = db.Column(db.Integer)
+    awake_min = db.Column(db.Integer)
+    source = db.Column(db.String(50), default="health_connect_csv")
+    source_id = db.Column(db.String(200))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint("source", "source_id"),
+    )
+
+    def __repr__(self):
+        return f"<SleepRecord {self.started_at}>"
+
+
 class Workout(db.Model):
     """A gym workout session."""
     __tablename__ = "workouts"

@@ -19,9 +19,39 @@ to trigger it, and how to schedule it.
 | **Technogym** | Gym sessions, calories, moves, per-exercise performance | Live mywellness.com JSON API. Needs `MYWELLNESS_EMAIL` and `MYWELLNESS_PASSWORD` in `.env`. |
 | **Wii Fit** | Weight, BMI, balance from Body Tests | The console's save files (`FitPlus*.dat`). Reads a folder, not a network service. |
 | **Technogym export** | Biometrics, indoor/outdoor sessions, profile | JSON files downloaded by hand from mywellness.com into `data/technogym_export/`. |
+| **Health Connect CSV** | Daily steps/distance/calories, exercise sessions, sleep sessions, daily heart-rate summaries | CSV files exported by the Health Data Export app into `data/health_data_export/`, or uploaded on the import page. |
 
-The first two are the ones worth automating. The third only changes when you
-download a new export, so a daily job will just skip it.
+The first two are the ones worth automating. The Technogym export only changes
+when you download a new one, and the Health Connect CSVs only change when you
+export afresh, so a daily job will just skip both when there is nothing new.
+
+### Health Connect CSV files
+
+The Health Data Export app (Play Store) reads Health Connect on-device and
+writes one CSV per category. The importer reads three of them:
+
+- **`Activity.csv`** — one row per day per exercise session. Daily aggregates
+  (steps, distance, calories) repeat on every row for the day, so the aggregate
+  is stored once per date and each session separately. Exercise names carry a
+  numeric type code (`"79 - Walking"`); the code is stripped for display but
+  kept in the `source_id`. `"0 - Other Workout"` rows become `gym` activities —
+  on this setup those are the Technogym strength sessions as Samsung Health saw
+  them.
+- **`Sleep.csv`** — one row per sleep session, stored as-is in
+  `sleep_records`. Nights are often fragmented into several rows; they are
+  deliberately not merged.
+- **`Vitals.csv`** — one row per day. Daily heart-rate summaries are attached
+  to the day's aggregate activity rather than stored as standalone rows.
+
+When a pushed session overlaps a gym workout in time, the workout is enriched
+(heart rate, calories, a note) instead of creating a duplicate — the gym
+workout is the session, Health Connect is the physiology. See
+`HEALTH-CONNECT.md`.
+
+Device limits are visible in the data, not hidden: the Galaxy Fit3 records no
+resting heart rate, HRV, oxygen or respiratory columns (all empty), and rarely
+reports REM sleep. Empty columns are skipped, never zero-filled — a zero would
+be a lie about your body.
 
 ### How the Wii Fit folder is chosen
 
@@ -201,6 +231,7 @@ upstream record always produces the same key:
 | Wii Fit | `Bagsy_2026-10-02T21:42:00_weight` |
 | Technogym (live) | the session id, e.g. `session_1041` |
 | Technogym export | `biometric_weight_2024-08-01T00:00:00+00:00` |
+| Health Connect CSV | `hcday:2026-09-07` (daily aggregate), `hcsess:2026-09-07 08:07:00:79 - Walking:11` (session), `hcsleep:<start>:<end>` (sleep) |
 
 ### 2. A database unique constraint
 
@@ -239,6 +270,9 @@ record re-read, delete its `import_log` row first.
 | `Nothing new from Wii Fit - all N measurements are already imported.` | The save files were read; you have them all. | Nothing. |
 | `FitPlus2.dat holds Wii Fit's non-profile data block and contains no body tests.` | Informational. That file is not a profile. | Nothing. |
 | `No Wii Fit source folder found.` | The importer could not find any save files. | See [Troubleshooting](#troubleshooting). |
+| `No CSV files in ...` | The Health Connect folder holds no CSV files. | Export from the phone app, or upload them on the import page. |
+| `no Activity.csv found - skipping activity import` | That category was not exported. | Nothing, unless you expected it — re-export with the category ticked. |
+| `N activities matched an existing gym workout and enriched it.` | Health Connect sessions overlapped gym workouts; the workouts gained heart-rate/calorie notes. | Nothing. This is the intended behaviour. |
 | `MYWELLNESS_EMAIL / MYWELLNESS_PASSWORD are not set.` | Credentials missing, so the gym portal was not contacted. | Add them to `.env`. |
 | `2026-10-02: Wii Fit recorded 99.5 kg, but 105 kg from technogym on 2026-10-02.` | Two sources disagree about the same day. | Open the profile page and pick which to use. Nothing was overwritten. |
 | `No usable records found in the ... source.` | The source was read but held nothing importable. | Usually means the export is genuinely empty. |

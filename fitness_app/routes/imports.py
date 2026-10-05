@@ -151,6 +151,75 @@ def upload_wii_fit():
     return redirect(url_for("imports.import_dashboard"))
 
 
+def health_connect_upload_dir() -> str:
+    """Folder receiving Health Data Export CSV files uploaded by hand.
+
+    Always the project's own ``data/health_data_export`` folder, matching the
+    CSV importer's default, so uploads work wherever the app runs.
+
+    Returns:
+        Absolute path to the upload folder (created if missing).
+    """
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    upload_dir = os.path.join(base_dir, "data", "health_data_export")
+    os.makedirs(upload_dir, exist_ok=True)
+    return upload_dir
+
+
+@imports_bp.route("/health-connect-csv", methods=["POST"])
+def import_health_connect_csv():
+    """Import Health Data Export CSV files from the source folder."""
+    destination = safe_next_url(request.form.get("next"))
+
+    try:
+        result = import_service.run_import("health_connect_csv")
+    except import_service.ImportUnavailable as unavailable:
+        flash(unavailable.reason, "warning")
+        return redirect(destination)
+
+    _flash_result(result)
+    return redirect(destination)
+
+
+@imports_bp.route("/health-connect-csv/upload", methods=["POST"])
+def upload_health_connect_csv():
+    """Upload Health Data Export CSV files, then import them straight away.
+
+    Accepts the files exactly as the phone app writes them (``Activity.csv``,
+    ``Sleep.csv``, ``Vitals.csv`` — anything ending in ``.csv``). Uploading
+    and importing in one step matches the phone workflow: export on the phone,
+    open the Pi's import page in the phone browser, upload.
+    """
+    upload_dir = health_connect_upload_dir()
+
+    files = request.files.getlist("health_connect_files")
+    uploaded = 0
+
+    for file in files:
+        if file and file.filename.lower().endswith(".csv"):
+            # Strip any path the browser may have sent; only the base name is
+            # ever written, inside our own folder.
+            filename = os.path.basename(file.filename)
+            if filename:
+                file.save(os.path.join(upload_dir, filename))
+                uploaded += 1
+
+    if uploaded == 0:
+        flash("No CSV files uploaded.", "warning")
+        return redirect(url_for("imports.import_dashboard"))
+
+    flash(f"Uploaded {uploaded} CSV file(s).", "success")
+
+    try:
+        result = import_service.run_import("health_connect_csv")
+    except import_service.ImportUnavailable as unavailable:
+        flash(unavailable.reason, "warning")
+        return redirect(url_for("imports.import_dashboard"))
+
+    _flash_result(result)
+    return redirect(url_for("imports.import_dashboard"))
+
+
 @imports_bp.route("/technogym-manual", methods=["POST"])
 def import_technogym_manual():
     """Import Technogym manual export data."""

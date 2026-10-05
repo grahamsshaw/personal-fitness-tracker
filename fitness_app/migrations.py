@@ -119,10 +119,51 @@ def _migrate_equipment_profiles(connection) -> bool:
     return True
 
 
+def _migrate_sleep_records(connection) -> bool:
+    """Create the sleep_records table if it does not exist.
+
+    Holds per-session sleep data from Health Connect CSV exports.
+    See ``models.SleepRecord``.
+
+    Args:
+        connection: An open SQLAlchemy connection.
+
+    Returns:
+        True if the table was created.
+    """
+    inspector = inspect(connection)
+    if "sleep_records" in inspector.get_table_names():
+        return False
+
+    connection.execute(text(
+        "CREATE TABLE sleep_records ("
+        "id INTEGER NOT NULL PRIMARY KEY, "
+        "person_id INTEGER NOT NULL, "
+        "started_at DATETIME NOT NULL, "
+        "ended_at DATETIME, "
+        "light_min INTEGER, "
+        "deep_min INTEGER, "
+        "rem_min INTEGER, "
+        "awake_min INTEGER, "
+        "source VARCHAR(50), "
+        "source_id VARCHAR(200), "
+        "created_at DATETIME, "
+        "FOREIGN KEY (person_id) REFERENCES person (id)"
+        ")"
+    ))
+    connection.execute(text(
+        "CREATE UNIQUE INDEX ix_sleep_records_source "
+        "ON sleep_records (source, source_id)"
+    ))
+    logger.info("Created table sleep_records")
+    return True
+
+
 #: Migrations applied in order at start-up. Each must be idempotent.
 MIGRATIONS = (
     _migrate_body_measurements,
     _migrate_equipment_profiles,
+    _migrate_sleep_records,
 )
 
 

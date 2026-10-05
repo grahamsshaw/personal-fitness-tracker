@@ -36,6 +36,7 @@ import os
 from datetime import date, timedelta
 
 from ..importers.base import ImportResult
+from ..importers.health_connect_csv import HealthConnectCsvImporter
 from ..importers.technogym import TechnogymImporter
 from ..importers.technogym_manual import TechnogymManualImporter
 from ..importers.wii_fit import WiiFitImporter
@@ -121,15 +122,35 @@ def _run_technogym_manual(**kwargs) -> ImportResult:
     return TechnogymManualImporter().import_data(**kwargs)
 
 
+def _run_health_connect_csv(**kwargs) -> ImportResult:
+    """Import Health Data Export CSV files (Health Connect via phone app).
+
+    Raises:
+        ImportUnavailable: If the folder holds no CSV files.
+    """
+    importer = HealthConnectCsvImporter()
+
+    if not importer.is_available():
+        raise ImportUnavailable(
+            "health_connect_csv",
+            f"No CSV files in {importer.data_dir}. "
+            f"Export from the Health Data Export app and copy the files there, "
+            f"or upload them on the import page.",
+        )
+
+    return importer.import_data(**kwargs)
+
+
 #: Source key -> (runner, label used in messages).
 RUNNERS = {
     "wii_fit": (_run_wii_fit, "Wii Fit"),
     "technogym": (_run_technogym, "Technogym"),
     "technogym_manual": (_run_technogym_manual, "Technogym export"),
+    "health_connect_csv": (_run_health_connect_csv, "Health Connect CSV"),
 }
 
 #: Every source, in the order a scheduled run should process them.
-ALL_SOURCES = ("technogym", "wii_fit", "technogym_manual")
+ALL_SOURCES = ("technogym", "wii_fit", "technogym_manual", "health_connect_csv")
 
 
 def run_import(source: str, **kwargs) -> ImportResult:
