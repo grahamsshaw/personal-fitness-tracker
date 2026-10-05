@@ -6,6 +6,7 @@ Provides data for Chart.js visualizations:
 - Activity duration/calories over time
 - Summary statistics
 - Body measurement conflicts awaiting a decision
+- Muscle training load (fatigue/strength) for the body map
 
 All body measurement endpoints delegate to
 :mod:`fitness_app.services.measurements`, which owns the rules about which
@@ -15,8 +16,9 @@ shape the result for JSON.
 
 from datetime import datetime, timedelta
 from flask import Blueprint, jsonify, request
-from ..models import db, Activity, Workout
+from ..models import db, Activity, Person, Workout
 from ..services import measurements as measurement_service
+from ..services import muscles as muscle_service
 
 charts_bp = Blueprint("charts", __name__)
 
@@ -183,4 +185,64 @@ def summary_data():
         "latest_bmi_source": latest_bmi.source if latest_bmi else None,
         "activity_types": {t: c for t, c in activity_types},
         "open_conflicts": len(open_conflicts),
+    })
+
+
+@charts_bp.route("/muscles/<muscle>")
+def muscle_detail(muscle):
+    """Return recent training for one canonical muscle.
+
+    Used when a muscle is clicked on the body map: what trained it, when it
+    was last trained, and how many sessions in the strength window.
+
+    Returns:
+        404 when ``muscle`` is not a known canonical name.
+    """
+    if muscle not in muscle_service.MUSCLES:
+        return jsonify({"error": f"unknown muscle {muscle!r}"}), 404
+
+    person = Person.query.first()
+    if person is None:
+        return jsonify({"muscle": muscle, "sessions": 0, "exercises": []})
+
+    load = muscle_service.muscle_load(person.id)
+    detail = muscle_service.muscle_history(person.id, muscle)
+
+    return jsonify({
+        "muscle": muscle,
+        "fatigue": load[muscle]["fatigue"],
+        "strength": load[muscle]["strength"],
+        "last_trained": detail["last_trained"],
+        "sessions": detail["sessions"],
+        "exercises": detail["exercises"],
+    })
+
+
+@charts_bp.route("/muscles")
+def muscle_data():
+    """Return per-muscle training load for the body map.
+
+    Query args:
+        mode: ``"fatigue"`` (default) or ``"strength"`` — which view to lead
+            with. Both are always included; the mode only sets ``levels``.
+
+    Levels are 0-4 per muscle, ready to shade the map. ``neglected`` lists
+    muscles with no training in the strength window, head to toe.
+    """
+    person = Person.query.first()
+    if person is None:
+        return jsonify({"levels": {}, "neglected": [], "mode": "fatigue"})
+
+    mode = request.args.get("mode", "fatigue")
+    if mode not in ("fatigue", "strength"):
+        mode = "fatigue"
+
+    load = muscle_service.muscle_load(person.id)
+
+    return jsonify({
+        "mode": mode,
+        "levels": {muscle: values[mode] for muscle, values in load.items()},
+        "fatigue": {muscle: values["fatigue"] for muscle, values in load.items()},
+        "strength": {muscle: values["strength"] for muscle, values in load.items()},
+        "neglected": muscle_service.neglected_muscles(person.id),
     })

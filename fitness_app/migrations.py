@@ -159,11 +159,50 @@ def _migrate_sleep_records(connection) -> bool:
     return True
 
 
+def _migrate_exercises(connection) -> bool:
+    """Add the library-enrichment columns to the exercises table.
+
+    Holds MIT-licensed ExerciseDB metadata imported by
+    ``scripts/seed_exercises.py``. See ``models.Exercise`` and
+    ``THIRD-PARTY-NOTICES.md``.
+
+    Args:
+        connection: An open SQLAlchemy connection.
+
+    Returns:
+        True if anything changed.
+    """
+    changed = False
+    changed |= _ensure_column(
+        connection, "exercises", "external_id", "VARCHAR(50)"
+    )
+    changed |= _ensure_column(
+        connection, "exercises", "body_part", "VARCHAR(100)"
+    )
+    changed |= _ensure_column(
+        connection, "exercises", "equipment_label", "VARCHAR(100)"
+    )
+    changed |= _ensure_column(
+        connection, "exercises", "target_muscle", "VARCHAR(100)"
+    )
+    changed |= _ensure_column(
+        connection, "exercises", "secondary_muscles", "TEXT"
+    )
+    changed |= _ensure_column(
+        connection, "exercises", "instructions", "TEXT"
+    )
+    changed |= _ensure_column(
+        connection, "exercises", "source", "VARCHAR(50)"
+    )
+    return changed
+
+
 #: Migrations applied in order at start-up. Each must be idempotent.
 MIGRATIONS = (
     _migrate_body_measurements,
     _migrate_equipment_profiles,
     _migrate_sleep_records,
+    _migrate_exercises,
 )
 
 

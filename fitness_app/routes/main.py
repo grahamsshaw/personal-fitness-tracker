@@ -275,6 +275,17 @@ def log_weight():
     return redirect(url_for("main.profile"))
 
 
+@main_bp.route("/muscles")
+def muscles():
+    """Muscle training map: fatigue and strength per muscle group.
+
+    The map itself is drawn client-side from ``body-paths.json`` geometry
+    and ``/api/charts/muscles`` levels. Clicking a muscle shows what trained
+    it recently; ``neglected`` names what the last 90 days never touched.
+    """
+    return render_template("muscles.html")
+
+
 @main_bp.route("/history")
 def history():
     """Workout history page."""

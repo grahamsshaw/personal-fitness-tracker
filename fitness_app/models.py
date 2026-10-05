@@ -104,6 +104,16 @@ class Exercise(db.Model):
     name = db.Column(db.String(200), nullable=False, unique=True)
     category = db.Column(db.String(50))  # 'strength', 'cardio', 'flexibility', 'balance'
     muscle_group = db.Column(db.String(100))  # 'chest', 'legs', 'back', etc.
+    # Library enrichment (seed_exercises.py, MIT-licensed ExerciseDB metadata).
+    # target_muscle/secondary_muscles hold the dataset's raw spellings;
+    # services/muscles.py normalises them onto canonical names for the map.
+    external_id = db.Column(db.String(50))  # dataset id, e.g. "0001"
+    body_part = db.Column(db.String(100))  # dataset body part, e.g. "waist"
+    equipment_label = db.Column(db.String(100))  # dataset equipment, e.g. "cable"
+    target_muscle = db.Column(db.String(100))
+    secondary_muscles = db.Column(db.Text)  # JSON list
+    instructions = db.Column(db.Text)  # JSON list of step strings
+    source = db.Column(db.String(50), default="manual")
     is_cardio = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 

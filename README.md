@@ -81,6 +81,7 @@ fitness_app/
 scripts/
 └── import_data.py       # Scheduled/manual import; what cron or Task Scheduler runs
 deploy-to-pi.bat         # One-click deploy + Docker rebuild on the Pi
+THIRD-PARTY-NOTICES.md   # MIT data/artwork attributions; what is NOT reused and why
 documentation/
 ├── BODY-MEASUREMENTS.md # Weight/BMI conflict handling
 ├── DEPLOYMENT.md        # Full Pi deployment guide
@@ -111,6 +112,14 @@ documentation/
   profile page, and can change your mind later
 - Manual weight entry derives BMI from your recorded height
 - See `documentation/BODY-MEASUREMENTS.md`
+
+**Muscles and exercise library**
+- 1,300+ exercise library with instructions, target and secondary muscles
+  (MIT-licensed ExerciseDB metadata - see `THIRD-PARTY-NOTICES.md`)
+- Clickable body map: fatigue (how recently trained - high means rest) and
+  strength (retained training) per muscle, plus the neglected list
+- Equipment pages show a mini muscle map of what each machine works
+- Clicking a muscle shows what trained it and when
 
 **Imports**
 - Wii Fit Plus save files (weight, BMI, balance)

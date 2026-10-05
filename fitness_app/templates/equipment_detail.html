@@ -37,6 +37,15 @@
         {% endfor %}
     </ul>
     {% endif %}
+
+    {% if map_muscles %}
+    <h3>Muscles Worked</h3>
+    <p class="text-muted">
+        The darker the muscle, the more central it is to this machine —
+        the way the diagrams printed on the machines show it.
+    </p>
+    <div id="equip-map"></div>
+    {% endif %}
 </div>
 
 <div class="form-actions">
@@ -46,4 +55,16 @@
     </form>
     <a href="{{ url_for('equipment.list_equipment') }}" class="btn btn-secondary">Back</a>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% if map_muscles %}
+<script src="{{ url_for('static', filename='js/muscles.js') }}"></script>
+<script>
+BodyMap.render("equip-map", {
+  highlight: {{ map_muscles | tojson }},
+  interactive: false
+});
+</script>
+{% endif %}
 {% endblock %}

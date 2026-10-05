@@ -316,6 +316,58 @@ input:focus, select:focus, textarea:focus {
     color: var(--text-muted);
 }
 
+/*
+  Body muscle map
+  ---------------
+  Front/back SVG figures shaded 0-4 by training load. Higher steps use the
+  warmer colours so "more colour = more training" reads the same in both
+  fatigue and strength views.
+*/
+.bodymap-figures {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+    justify-content: center;
+    margin: 1rem 0;
+}
+.bodymap-figure {
+    margin: 0;
+    text-align: center;
+}
+.bodymap-svg {
+    height: 420px;
+    width: auto;
+    max-width: 100%;
+}
+.bodymap-figure figcaption {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+.bodymap-svg .bm-sil {
+    fill: #e5e7eb;
+    stroke: #9ca3af;
+    stroke-width: 1;
+}
+.bodymap-svg .bm-m {
+    stroke: #4b5563;
+    stroke-width: 1;
+}
+.bodymap-svg .bm-m.m0 { fill: #f3f4f6; }
+.bodymap-svg .bm-m.m1 { fill: #fde68a; }
+.bodymap-svg .bm-m.m2 { fill: #fbbf24; }
+.bodymap-svg .bm-m.m3 { fill: #f97316; }
+.bodymap-svg .bm-m.m4 { fill: #dc2626; }
+.bodymap-svg .bm-m.sel {
+    stroke: #2563eb;
+    stroke-width: 3;
+}
+.map-modes {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    margin: 1rem 0;
+}
+
 /* Pagination */
 .pagination {
     display: flex;

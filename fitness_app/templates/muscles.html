@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Muscles - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>Muscle Training Map</h1>
+
+<!--
+  Body map page
+  -------------
+  Front/back figures shaded by training load, drawn client-side from
+  body-paths.json geometry (MIT-licensed, see THIRD-PARTY-NOTICES.md).
+  Clicking a muscle shows what trained it; the neglected list names what
+  the last 90 days never touched.
+-->
+<div class="map-modes">
+    <button id="mode-fatigue" class="btn btn-primary">Fatigue</button>
+    <button id="mode-strength" class="btn btn-secondary">Strength</button>
+    <span class="import-hint" id="mode-hint">
+        Fatigue shows how recently each muscle was trained. High means rest.
+    </span>
+</div>
+
+<div id="bodymap"></div>
+
+<div id="muscle-detail" class="import-panel" hidden>
+    <h2 id="muscle-name"></h2>
+    <p id="muscle-levels" class="text-muted"></p>
+    <ul id="muscle-exercises"></ul>
+</div>
+
+<h2>Neglected muscles</h2>
+<p class="text-muted">No training logged in the last 90 days.</p>
+<ul id="neglected-list"></ul>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/muscles.js') }}"></script>
+<script>
+(function () {
+  "use strict";
+
+  var mode = "fatigue";
+  var HINTS = {
+    fatigue: "Fatigue shows how recently each muscle was trained. High means rest.",
+    strength: "Strength shows retained muscle training. Train again to reset what fades."
+  };
+
+  function renderMap() {
+    BodyMap.render("bodymap", { mode: mode, onSelect: showMuscle });
+  }
+
+  function setMode(next) {
+    mode = next;
+    document.getElementById("mode-fatigue").className =
+      "btn " + (mode === "fatigue" ? "btn-primary" : "btn-secondary");
+    document.getElementById("mode-strength").className =
+      "btn " + (mode === "strength" ? "btn-primary" : "btn-secondary");
+    document.getElementById("mode-hint").textContent = HINTS[mode];
+    renderMap();
+  }
+
+  function showMuscle(muscle) {
+    fetch("/api/charts/muscles/" + encodeURIComponent(muscle))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var names = window.BodyMap.names;
+        document.getElementById("muscle-detail").hidden = false;
+        document.getElementById("muscle-name").textContent = names[muscle] || muscle;
+        document.getElementById("muscle-levels").textContent =
+          "Fatigue " + d.fatigue + " / 4, strength " + d.strength + " / 4" +
+          (d.last_trained ? ", last trained " + d.last_trained : ", never trained") +
+          " (" + d.sessions + " sessions in 90 days).";
+        var list = document.getElementById("muscle-exercises");
+        list.innerHTML = "";
+        (d.exercises || []).forEach(function (ex) {
+          var li = document.createElement("li");
+          li.textContent = ex.name + " (" + ex.sessions + ")";
+          list.appendChild(li);
+        });
+        if (!(d.exercises || []).length) {
+          var li = document.createElement("li");
+          li.textContent = "Nothing logged for this muscle.";
+          li.className = "text-muted";
+          list.appendChild(li);
+        }
+      });
+  }
+
+  document.getElementById("mode-fatigue").addEventListener("click", function () { setMode("fatigue"); });
+  document.getElementById("mode-strength").addEventListener("click", function () { setMode("strength"); });
+
+  fetch("/api/charts/muscles")
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      var list = document.getElementById("neglected-list");
+      var names = window.BodyMap.names;
+      (d.neglected || []).forEach(function (muscle) {
+        var li = document.createElement("li");
+        var link = document.createElement("a");
+        link.href = "#";
+        link.textContent = names[muscle] || muscle;
+        link.addEventListener("click", function (e) { e.preventDefault(); showMuscle(muscle); });
+        li.appendChild(link);
+        list.appendChild(li);
+      });
+      if (!(d.neglected || []).length) {
+        list.innerHTML = "<li>Every muscle has been trained in the last 90 days.</li>";
+      }
+    });
+
+  renderMap();
+})();
+</script>
+{% endblock %}

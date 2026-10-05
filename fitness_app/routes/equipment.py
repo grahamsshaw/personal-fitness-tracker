@@ -52,7 +52,11 @@ def new_equipment():
 def view_equipment(equipment_id):
     """View equipment details."""
     equipment = Equipment.query.get_or_404(equipment_id)
-    return render_template("equipment_detail.html", equipment=equipment)
+    return render_template(
+        "equipment_detail.html",
+        equipment=equipment,
+        map_muscles=_profile_muscles(equipment),
+    )
 
 
 @equipment_bp.route("/<int:equipment_id>/edit", methods=["GET", "POST"])
@@ -115,6 +119,64 @@ def _split_csv(raw: str | None) -> list[str]:
     if not raw:
         return []
     return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def _profile_muscles(equipment: Equipment) -> dict[str, int]:
+    """Canonical muscles for an equipment's profile, for the mini body map.
+
+    Combines the profile's muscles-used list with the supported exercises'
+    target muscles from the exercise library, so the map shows what the
+    machine works the way the diagrams printed on machines do.
+
+    Args:
+        equipment: The equipment row (with its optional profile).
+
+    Returns:
+        Mapping of canonical muscle to shade level (target 4, secondary 2).
+    """
+    import json as json_module
+
+    from ..services.muscles import normalize_muscle
+
+    highlight: dict[str, int] = {}
+    profile = equipment.profile
+
+    if profile is None:
+        return highlight
+
+    def add(raw: str | None, level: int) -> None:
+        canonical = normalize_muscle(raw)
+        if canonical is not None:
+            highlight[canonical] = max(highlight.get(canonical, 0), level)
+
+    try:
+        muscles_used = json_module.loads(profile.muscles_used or "[]")
+    except (ValueError, TypeError):
+        muscles_used = []
+    for raw in muscles_used or []:
+        add(raw, 4)
+
+    try:
+        supported = json_module.loads(profile.supported_exercises or "[]")
+    except (ValueError, TypeError):
+        supported = []
+    if supported:
+        from ..models import Exercise
+        for name in supported:
+            exercise = Exercise.query.filter(
+                db.func.lower(Exercise.name) == name.lower()
+            ).first()
+            if exercise is None or exercise.target_muscle is None:
+                continue
+            add(exercise.target_muscle, 4)
+            try:
+                secondary = json_module.loads(exercise.secondary_muscles or "[]")
+            except (ValueError, TypeError):
+                secondary = []
+            for raw in secondary or []:
+                add(raw, 2)
+
+    return highlight
 
 
 @equipment_bp.route("/profiles")
