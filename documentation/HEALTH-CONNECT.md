@@ -210,15 +210,20 @@ same event from two sources.
 ### How to match
 
 Overlap alone is not enough — a walk to the gym overlaps the gym visit
-without being part of it. A pushed record enriches a workout only when both
-hold:
+without being part of it. A pushed record enriches a workout two ways:
 
-1. **Time overlap** — the records' windows overlap (±30 min for clock drift).
-2. **Modality match** — strength-like records match any overlapping workout;
-   locomotion records (walk, run, cycle, row, elliptical) match only when the
-   workout used a machine for that modality (a treadmill run recorded by both
-   sides is one session; a walk to the gym during a weights session is two).
-   Swimming never matches; day-long steps summaries never match.
+1. **Containment** — the record's window sits fully inside the visit.
+   A walk between machines, an hour of steps, heart-rate samples: all
+   activity *during* gym time supplements the workout, whatever its type.
+   The raw window is used (no tolerance): a commute starting before the
+   session or ending after it is not contained and stays separate.
+2. **Overlap plus modality** — strength-like records match any overlapping
+   workout; locomotion matches only when the workout used a machine for
+   that modality (a treadmill run recorded by both sides is one session).
+   Day-long steps summaries never match this way; swimming never matches.
+
+Open workouts (a guided session still running) match against
+`[started_at, now]`, so live pushes during the session still land.
 
 When a match is found, enrich the workout. When no match is found, create a new
 `Activity` from the Health Connect data — the commute, the station walk, the

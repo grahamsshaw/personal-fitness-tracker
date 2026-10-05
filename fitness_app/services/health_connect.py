@@ -235,10 +235,24 @@ def find_overlapping_workout(
 ) -> Workout | None:
     """Find the gym workout a pushed activity belongs to, if any.
 
-    Overlap alone is not enough: a walk to the gym overlaps the gym visit
-    without being part of it. The activity must also be *compatible* — a
-    strength-like record, or a locomotion record whose modality appears
-    among the workout's machines.
+    Two ways to match, in order:
+
+    1. **Containment** — the record's window sits fully inside the gym
+       visit. A walk between machines, an hour of steps, heart-rate
+       samples: all activity *during* gym time supplements the workout,
+       whatever its type. The raw window is used (no tolerance): a commute
+       that starts before the session or ends after it is not contained and
+       stays separate.
+    2. **Overlap plus modality** — for records merely overlapping the visit
+       (a treadmill run starting early, a strength session from the watch):
+       strength-like records match any overlapping workout; locomotion
+       records match only when the workout used a machine for that modality.
+       Day-long steps summaries never match — a 24-hour window cannot be
+       contained in a session and overlaps everything meaninglessly.
+
+    Open workouts (no end time yet, e.g. a guided session still running)
+    match against ``[started_at, now]`` so live pushes during the session
+    still land.
 
     Args:
         person_id: Whose workouts to search.
@@ -246,16 +260,14 @@ def find_overlapping_workout(
         ended_at: End of the pushed activity, if known.
         activity_type: Classified activity type (``gym``, ``walking`` …).
         is_aggregate: True for day-spanning summaries (daily steps), which
-            never match anything.
+            only ever match by containment (in practice: never).
 
     Returns:
         The compatible overlapping workout, or None when the activity
         stands on its own.
     """
-    if is_aggregate:
-        return None
-
     window_end = ended_at or started_at
+    now = datetime.now()
 
     candidates = Workout.query.filter(
         Workout.person_id == person_id,
@@ -263,16 +275,28 @@ def find_overlapping_workout(
     ).all()
 
     for workout in candidates:
-        workout_end = workout.ended_at or workout.started_at
-        if workout_end is None:
+        if workout.ended_at is not None:
+            workout_end = workout.ended_at
+        elif (now - workout.started_at).total_seconds() < 12 * 3600:
+            # Still running (or recently left open): match against the
+            # window so far rather than a zero-length point.
+            workout_end = now
+        else:
             continue
-        # Windows overlap when each starts before the other ends, widened by
-        # the tolerance in both directions for clock drift.
+
+        # Contained: the whole record happened during gym time.
+        if started_at >= workout.started_at and window_end <= workout_end:
+            return workout
+
+        # Mere overlap: scrutinise before merging.
         overlaps = (
             workout.started_at.timestamp() <= window_end.timestamp() + OVERLAP_TOLERANCE_SECONDS
             and workout_end.timestamp() >= started_at.timestamp() - OVERLAP_TOLERANCE_SECONDS
         )
         if not overlaps:
+            continue
+
+        if is_aggregate:
             continue
 
         if activity_type == "gym":
