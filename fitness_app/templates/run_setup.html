@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Start Session - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>Start a Session</h1>
+
+<!--
+  Guided session setup
+  --------------------
+  Leads with cross-source awareness: what the week already holds, the latest
+  sessions whatever their origin, and the hottest muscles. The session is
+  planned against everything done, not just gym history.
+-->
+{% if snapshot and not snapshot.get("empty") %}
+<div class="import-panel">
+    <h2>This week so far</h2>
+    <p>
+        {{ snapshot.this_week.sessions }} sessions,
+        {{ snapshot.this_week.minutes }} minutes
+        {% if snapshot.this_week.by_source %}
+            ({% for source, totals in snapshot.this_week.by_source.items() %}{{ source }}: {{ totals.sessions }}{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
+    </p>
+    {% if snapshot.recent_sessions %}
+    <ul>
+        {% for session in snapshot.recent_sessions[:3] %}
+        <li>{{ session.date }} — {{ session.name }} ({{ session.source }})</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    {% if snapshot.muscles.hottest %}
+    <p class="text-muted">
+        Still warm:
+        {% for item in snapshot.muscles.hottest[:3] %}{{ item.muscle }}{% if not loop.last %}, {% endif %}{% endfor %}
+        — consider what they need, or train around them.
+    </p>
+    {% endif %}
+</div>
+{% endif %}
+
+<h2>Pick exercises</h2>
+<form method="GET" action="{{ url_for('workouts.run_setup') }}" class="form">
+    <div class="form-group">
+        <label for="q">Search the library (1,300+ exercises)</label>
+        <input type="text" id="q" name="q" value="{{ query }}" placeholder="e.g. press, row, squat">
+    </div>
+    <div class="form-group">
+        <label for="equipment_id">Only on this equipment</label>
+        <select id="equipment_id" name="equipment_id">
+            <option value="">-- Everything --</option>
+            {% for item in equipment %}
+            <option value="{{ item.id }}" {% if equipment_id == item.id %}selected{% endif %}>{{ item.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button type="submit" class="btn btn-secondary">Filter</button>
+</form>
+
+<form method="POST" action="{{ url_for('workouts.run_setup') }}" class="form">
+    <div class="form-group">
+        <label for="workout_name">Session name</label>
+        <input type="text" id="workout_name" name="workout_name" value="Workout" required>
+    </div>
+
+    {% if exercises %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th></th>
+                <th>Exercise</th>
+                <th>Mode</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for exercise in exercises %}
+            <tr>
+                <td><input type="checkbox" name="exercise_id" value="{{ exercise.id }}"></td>
+                <td>{{ exercise.name }}</td>
+                <td>
+                    <select name="mode_{{ exercise.id }}">
+                        <option value="reps">Weight × reps</option>
+                        <option value="time">Timed</option>
+                        <option value="cardio">Cardio</option>
+                    </select>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No exercises match. <a href="{{ url_for('workouts.run_setup') }}">Clear the filter</a>.</p>
+    {% endif %}
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Start session</button>
+        <a href="{{ url_for('workouts.new_workout') }}" class="btn btn-secondary">Manual log instead</a>
+    </div>
+</form>
+{% endblock %}

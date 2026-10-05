@@ -214,6 +214,48 @@ def _migrate_person_goal(connection) -> bool:
     )
 
 
+def _migrate_workout_sets(connection) -> bool:
+    """Add set-mode, effort and superset columns.
+
+    - ``workout_exercises.mode``: how sets are logged (reps/time/cardio).
+    - ``workout_exercises.superset_group``: back-to-back grouping.
+    - ``sets``: duration, distance, effort in its logged scale (RIR or
+      RPE — stored as-given, never converted), set type, warm-up flag.
+
+    Args:
+        connection: An open SQLAlchemy connection.
+
+    Returns:
+        True if anything changed.
+    """
+    changed = False
+    changed |= _ensure_column(
+        connection, "workout_exercises", "mode", "VARCHAR(20)"
+    )
+    changed |= _ensure_column(
+        connection, "workout_exercises", "superset_group", "INTEGER"
+    )
+    changed |= _ensure_column(
+        connection, "sets", "duration_seconds", "INTEGER"
+    )
+    changed |= _ensure_column(
+        connection, "sets", "distance_m", "FLOAT"
+    )
+    changed |= _ensure_column(
+        connection, "sets", "effort_rir", "INTEGER"
+    )
+    changed |= _ensure_column(
+        connection, "sets", "effort_rpe", "FLOAT"
+    )
+    changed |= _ensure_column(
+        connection, "sets", "set_type", "VARCHAR(20)"
+    )
+    changed |= _ensure_column(
+        connection, "sets", "is_warmup", "BOOLEAN"
+    )
+    return changed
+
+
 #: Migrations applied in order at start-up. Each must be idempotent.
 MIGRATIONS = (
     _migrate_body_measurements,
@@ -221,6 +263,7 @@ MIGRATIONS = (
     _migrate_sleep_records,
     _migrate_exercises,
     _migrate_person_goal,
+    _migrate_workout_sets,
 )
 
 

@@ -367,3 +367,21 @@ def create_body_measurement():
         "conflicts": conflicts,
         "resolve_url": url_for("main.profile") if conflicts else None,
     }), 201
+
+
+@api_bp.route("/training-context")
+def training_context():
+    """Return the holistic training snapshot.
+
+    The same dict the guided runner plans against and the future assistant
+    will consume as prompt context: person/goals, current weight/BMI, this
+    week's cross-source totals, recent sessions from every source, muscle
+    load, open conflicts. One builder, every consumer — the human UI and
+    the eventual LLM can never disagree about what has happened.
+    """
+    from ..services import training_context as training_context_service
+
+    person = db.session.query(Person.id).order_by(Person.id).first()
+    return jsonify(training_context_service.snapshot(
+        person[0] if person else None
+    ))

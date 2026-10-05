@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}{{ workout.workout_name }} - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>{{ workout.workout_name }}</h1>
+<p class="text-muted">Started {{ workout.started_at.strftime('%H:%M') }} — log sets as you go.</p>
+
+<!--
+  Guided session
+  --------------
+  One card per exercise with last-time values pre-filled, PR detection on
+  save, a rest timer, and an optional superset link to the previous
+  exercise. The screen-stays-awake request and timer live in the script
+  block below.
+-->
+{% for we in workout.exercises|sort(attribute='exercise_order') %}
+<div class="import-panel" id="exercise-{{ we.id }}">
+    <h2>
+        {{ we.exercise_name }}
+        <small class="text-muted">({{ we.mode or 'reps' }})</small>
+        {% if we.superset_group %}
+        <small class="text-muted">· superset {{ we.superset_group }} — rest after the pair</small>
+        {% endif %}
+    </h2>
+
+    {% set prev = performed.get(we.exercise_id) %}
+    {% if prev and (prev.weight or prev.reps) %}
+    <p class="text-muted">
+        Last time:
+        {% if prev.weight %} {{ prev.weight }} kg{% endif %}{% if prev.reps %} × {{ prev.reps }}{% endif %}
+        {% if prev.best_1rm %} · best 1RM {{ prev.best_1rm }} kg{% endif %}
+    </p>
+    {% endif %}
+
+    {% if we.sets %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>#</th><th>Weight</th><th>Reps</th><th>Time</th><th>Effort</th><th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in we.sets %}
+            <tr>
+                <td>{{ s.set_number }}{% if s.is_warmup %} (warm-up){% endif %}</td>
+                <td>{% if s.weight_kg_actual %}{{ s.weight_kg_actual }} kg{% else %}--{% endif %}</td>
+                <td>{{ s.reps_actual or '--' }}</td>
+                <td>{% if s.duration_seconds %}{{ s.duration_seconds }}s{% else %}--{% endif %}</td>
+                <td>
+                    {% if s.effort_rir is not none %}RIR {{ s.effort_rir }}
+                    {% elif s.effort_rpe is not none %}RPE {{ s.effort_rpe }}
+                    {% else %}--{% endif %}
+                </td>
+                <td></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('workouts.run_add_set', workout_id=workout.id) }}" class="form">
+        <input type="hidden" name="we_id" value="{{ we.id }}">
+        {% if (we.mode or 'reps') == 'reps' %}
+        <div class="form-group">
+            <label>Weight (kg)</label>
+            <input type="number" name="weight" step="0.5" value="{{ prev.weight if prev and prev.weight else '' }}" inputmode="decimal">
+        </div>
+        <div class="form-group">
+            <label>Reps</label>
+            <input type="number" name="reps" value="{{ prev.reps if prev and prev.reps else '' }}" inputmode="numeric">
+        </div>
+        {% elif we.mode == 'time' %}
+        <div class="form-group">
+            <label>Duration (seconds held)</label>
+            <input type="number" name="duration" value="{{ prev.duration if prev and prev.duration else '' }}" inputmode="numeric">
+        </div>
+        {% else %}
+        <div class="form-group">
+            <label>Duration (seconds)</label>
+            <input type="number" name="duration" inputmode="numeric">
+        </div>
+        <div class="form-group">
+            <label>Distance (m)</label>
+            <input type="number" name="distance" step="1" inputmode="decimal">
+        </div>
+        {% endif %}
+        <div class="form-group">
+            <label>Effort (optional)</label>
+            <input type="number" name="effort" min="0" max="10" step="1" inputmode="numeric">
+            <select name="effort_scale">
+                <option value="rir">RIR (reps left)</option>
+                <option value="rpe">RPE (1–10)</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label><input type="checkbox" name="is_warmup" value="1"> Warm-up set</label>
+            <label><input type="checkbox" name="set_type" value="dropset"> Drop-set</label>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Log set</button>
+            <button type="button" class="btn btn-secondary" data-rest="90">Rest 90s</button>
+            {% if not loop.first and not we.superset_group %}
+            <button type="submit" class="btn btn-secondary" formaction="{{ url_for('workouts.run_link_superset', workout_id=workout.id) }}">Superset with previous</button>
+            {% endif %}
+        </div>
+    </form>
+</div>
+{% endfor %}
+
+<div class="import-panel">
+    <h2>Rest timer</h2>
+    <p class="stat-value" id="rest-display">--:--</p>
+    <div class="form-actions">
+        <button class="btn btn-secondary" data-rest="60">60s</button>
+        <button class="btn btn-secondary" data-rest="90">90s</button>
+        <button class="btn btn-secondary" data-rest="120">2 min</button>
+        <button class="btn btn-secondary" data-rest="180">3 min</button>
+        <button class="btn btn-secondary" id="rest-clear">Clear</button>
+    </div>
+</div>
+
+<form method="POST" action="{{ url_for('workouts.run_finish', workout_id=workout.id) }}">
+    <button type="submit" class="btn btn-primary">Finish session</button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  "use strict";
+
+  /* Keep the screen awake while training: no unlocking the phone between
+   * sets. Released when the session ends or the page hides. */
+  var wakeLock = null;
+  function holdAwake() {
+    if (!("wakeLock" in navigator)) return;
+    navigator.wakeLock.request("screen").then(
+      function (lock) { wakeLock = lock; },
+      function () { /* Denied — training continues without it. */ }
+    );
+  }
+  holdAwake();
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") holdAwake();
+  });
+
+  /* Rest timer: one countdown, preset buttons, beep + vibration on end. */
+  var remaining = 0;
+  var timer = null;
+  var display = document.getElementById("rest-display");
+
+  function fmt(seconds) {
+    var m = Math.floor(seconds / 60);
+    var s = seconds % 60;
+    return m + ":" + (s < 10 ? "0" : "") + s;
+  }
+
+  function beep() {
+    try {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      var osc = ctx.createOscillator();
+      osc.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.4);
+    } catch (e) { /* Silent timer is still a timer. */ }
+    if ("vibrate" in navigator) {
+      try { navigator.vibrate(400); } catch (e) { /* Ignore. */ }
+    }
+  }
+
+  function start(seconds) {
+    if (timer) clearInterval(timer);
+    remaining = seconds;
+    display.textContent = fmt(remaining);
+    timer = setInterval(function () {
+      remaining -= 1;
+      if (remaining <= 0) {
+        clearInterval(timer);
+        timer = null;
+        display.textContent = "Rest over";
+        beep();
+        return;
+      }
+      display.textContent = fmt(remaining);
+    }, 1000);
+  }
+
+  document.querySelectorAll("[data-rest]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      start(parseInt(btn.getAttribute("data-rest"), 10));
+    });
+  });
+  document.getElementById("rest-clear").addEventListener("click", function () {
+    if (timer) clearInterval(timer);
+    timer = null;
+    display.textContent = "--:--";
+  });
+})();
+</script>
+{% endblock %}

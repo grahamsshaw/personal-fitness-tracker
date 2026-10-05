@@ -40,12 +40,18 @@ on its own.
   card with goal progress, stat row, neglected-muscles nudge.
 - Weight goal on the profile (new `Person.weight_goal_kg`).
 
-### Phase 2 — Guided workout runner
-- Start today's session: exercises with last-time weights pre-filled, rest
-  timer, screen wake lock, PR detection, per-set logging incl. RIR/RPE.
-- Timed sets (planks, HIIT intervals) and cardio sets (time + speed).
-- Superset display (back-to-back logging, rest after the pair).
-- Needs: set-mode/effort schema extension (our own columns).
+### Phase 2 — Guided workout runner (built)
+- Start page leads with cross-source awareness (week by source, recent
+  sessions, hot muscles) from `services/training_context.py`.
+- Session page: last-time prefill, PR detection (Epley, warm-ups excluded),
+  rest timer with beep/vibration, screen wake lock, superset linking,
+  timed and cardio set modes, RIR/RPE as-logged.
+- `services/training_context.py` + `GET /api/training-context`: the
+  holistic snapshot (goals, current values, cross-source week, sessions,
+  muscles, conflicts) — the context the future assistant consumes.
+- Dashboard "This week" card breaks sessions/minutes down by source.
+- Set schema extended (mode, duration, distance, effort, type, warm-up);
+  WorkoutExercise gained mode + superset group.
 
 ### Phase 3 — Plans, routines, progression
 - Weekly plan (routine per weekday), reschedule without touching the plan.

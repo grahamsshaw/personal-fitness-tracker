@@ -86,6 +86,13 @@ def dashboard():
         muscle_service.neglected_muscles(person.id)[:3] if person else []
     )
 
+    # This week's sessions broken down by source: gym, phone, Wii, manual —
+    # the measurable whole, not just gym history.
+    from ..services import training_context
+    week_breakdown = (
+        training_context.weekly_by_source(person.id) if person else None
+    )
+
     return render_template(
         "dashboard.html",
         person=person,
@@ -99,6 +106,7 @@ def dashboard():
         week_workouts=week_workouts,
         goal_progress=goal_progress,
         neglected=neglected,
+        week_breakdown=week_breakdown,
     )
 
 

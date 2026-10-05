@@ -25,6 +25,21 @@
         {% endif %}
     </div>
     <div class="stat-card">
+        <h3>This week</h3>
+        <p class="stat-value">
+            {% if week_breakdown %}
+                {{ week_breakdown.sessions }} sessions &middot; {{ week_breakdown.minutes }} min
+            {% else %}
+                --
+            {% endif %}
+        </p>
+        {% if week_breakdown and week_breakdown.by_source %}
+            <p class="stat-source">
+                {% for source, totals in week_breakdown.by_source.items() %}{{ source }}: {{ totals.sessions }}{% if not loop.last %}, {% endif %}{% endfor %}
+            </p>
+        {% endif %}
+    </div>
+    <div class="stat-card">
         <h3>Weight</h3>
         <p class="stat-value">
             {% if latest_weight %}
@@ -91,7 +106,8 @@
 <div class="dashboard-section">
     <h2>Quick Actions</h2>
     <div class="quick-actions">
-        <a href="{{ url_for('workouts.new_workout') }}" class="btn btn-primary">Log Workout</a>
+        <a href="{{ url_for('workouts.run_setup') }}" class="btn btn-primary">Start Guided Session</a>
+        <a href="{{ url_for('workouts.new_workout') }}" class="btn btn-secondary">Log Workout</a>
         <a href="{{ url_for('equipment.new_equipment') }}" class="btn btn-secondary">Add Equipment</a>
         <a href="{{ url_for('main.profile') }}" class="btn btn-secondary">Edit Profile</a>
     </div>

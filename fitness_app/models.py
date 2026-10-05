@@ -273,6 +273,13 @@ class WorkoutExercise(db.Model):
     equipment_name = db.Column(db.String(200))  # denormalized from source
     machine = db.Column(db.String(200))  # Technogym machine name
     resistance_type = db.Column(db.String(50))
+    # How sets are logged for this exercise: 'reps' (weight x reps),
+    # 'time' (planks, HIIT intervals — duration per set) or 'cardio'
+    # (duration + distance). Chosen per exercise when the session is built.
+    mode = db.Column(db.String(20), default="reps")
+    # Superset group: consecutive exercises sharing a group number are run
+    # back-to-back with rest only after the group. NULL means standalone.
+    superset_group = db.Column(db.Integer)
     duration_seconds = db.Column(db.Integer)
     calories = db.Column(db.Float)
     moves = db.Column(db.Integer)
@@ -305,6 +312,19 @@ class Set(db.Model):
     reps_actual = db.Column(db.Integer)
     weight_kg_target = db.Column(db.Float)
     weight_kg_actual = db.Column(db.Float)
+    # Timed and cardio sets: duration in seconds, distance where relevant
+    # (rower metres, run distance). NULL for plain weight x reps sets.
+    duration_seconds = db.Column(db.Integer)
+    distance_m = db.Column(db.Float)
+    # Effort in the scale it was logged: RIR (reps left in the tank) or RPE
+    # (10-point). Stored as-given, never converted — aggregation reads RIR
+    # natively and converts RPE (RPE 8 == RIR 2) only for display.
+    effort_rir = db.Column(db.Integer)
+    effort_rpe = db.Column(db.Float)
+    # 'straight' (default), 'dropset' or 'restpause'. Warm-ups ride on the
+    # row itself so history readers can ignore the flag and stay correct.
+    set_type = db.Column(db.String(20), default="straight")
+    is_warmup = db.Column(db.Boolean, default=False)
     compliance_target = db.Column(db.Float)
     compliance_actual = db.Column(db.Float)
     source = db.Column(db.String(50), default="manual")
