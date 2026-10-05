@@ -305,8 +305,13 @@ GET /api/health-connect/status
    with API-key auth, idempotency, workout enrichment and conflict reporting,
    plus unauthenticated `GET /api/health-connect/status`. Verified with 44
    automated checks against a scratch database.
-3. **Build the minimal phone app** — read weight + exercise records, POST them
-   to the Pi endpoint with the API key. Manual "Sync" button only.
+3. ~~**Build the minimal phone app**~~ — **scaffolded**: `companion-app/` is a
+   complete Android Studio project (Health Connect reads, CSV export in the
+   reference app's exact shape, direct push to the Pi, tracker WebView, QR
+   scan, assistant UI wired to the future `POST /api/assistant/ask`). It
+   cannot be compiled on the dev PC (no Android SDK) — open it in Android
+   Studio, sync, and run. See `companion-app/README.md` for build, install
+   and first-run steps.
 4. **Test with real data** — Health Connect Toolbox can write sample records if
    real data is thin; adjust the mapping to what actually arrives.
 5. **Add Pi-side processing (Option C)** — matching/enrichment cron once pushes

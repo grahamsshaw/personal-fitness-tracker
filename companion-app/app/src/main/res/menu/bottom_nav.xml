@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_tracker"
+        android:title="Tracker" />
+    <item
+        android:id="@+id/nav_export"
+        android:title="Export" />
+    <item
+        android:id="@+id/nav_scan"
+        android:title="Scan" />
+    <item
+        android:id="@+id/nav_assistant"
+        android:title="Assistant" />
+    <item
+        android:id="@+id/nav_settings"
+        android:title="Settings" />
+</menu>

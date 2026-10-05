@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Permissions, each with its reason (shown in Settings > Apps if the user asks):
+
+  - INTERNET: talk to the Pi on the home LAN (WebView + push endpoint).
+  - CAMERA: scan equipment QR labels. Requested only when Scan is opened.
+  - Health READ_* permissions: granted inside the Health Connect system UI,
+    not here — these declarations only make the app eligible to ask.
+
+  android:usesCleartextTraffic="true" is deliberate: the Pi serves plain HTTP
+  on the home LAN. There is no certificate, no public DNS, and nothing leaves
+  the house. Revisit if the tracker is ever exposed beyond the LAN.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Health Connect data types this app reads. No sleep, per the owner's
+         decision: sleep sessions are not wanted in the tracker. -->
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <uses-permission android:name="android.permission.health.READ_DISTANCE" />
+    <uses-permission
+        android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
+    <uses-permission
+        android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.READ_EXERCISE" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
+    <application
+        android:allowBackup="true"
+        android:label="Fitness Tracker"
+        android:theme="@style/Theme.FitnessTracker"
+        android:usesCleartextTraffic="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

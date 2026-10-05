@@ -17,6 +17,7 @@ each file explains *why* something is set up the way it is, not just what.
 | Folder | Purpose |
 |--------|---------|
 | `fitness_app/` | All application code (routes, models, importers, templates, static files). |
+| `companion-app/` | Android app source (Health Connect export, tracker WebView, QR scan, assistant UI). Built in Android Studio, not here. |
 | `scripts/` | Standalone entry points meant to be run from a terminal or a scheduler. `import_data.py` is the one. |
 | `data/` | The SQLite database plus imported Wii Fit / Technogym source files. Never deployed, never in git. |
 | `debug/` | One-off diagnostic scripts used while reverse-engineering file formats and APIs. See `debug/README.md`. |
