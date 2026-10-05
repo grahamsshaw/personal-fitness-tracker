@@ -128,6 +128,7 @@ documentation/
 - Each importer is standalone, idempotent, and keeps `source` / `source_id`
 - Buttons on the log workout page pull in a session straight after finishing it
 - `py scripts/import_data.py` runs everything from a terminal or a scheduler
+- Technogym cardio links into guided weight sessions: one visit reads whole
 - See `documentation/IMPORTING.md`
 
 ## Future Phases

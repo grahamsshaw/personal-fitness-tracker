@@ -114,8 +114,15 @@ def new_workout():
 @workouts_bp.route("/<int:workout_id>")
 def view_workout(workout_id):
     """View a single workout."""
+    from ..services import sessions as session_service
+
     workout = Workout.query.get_or_404(workout_id)
-    return render_template("workout_detail.html", workout=workout)
+    return render_template(
+        "workout_detail.html",
+        workout=workout,
+        linked_activities=session_service.linked_activities(workout),
+        link_candidates=session_service.link_candidates(workout),
+    )
 
 
 @workouts_bp.route("/<int:workout_id>/edit", methods=["GET", "POST"])
@@ -158,6 +165,34 @@ def delete_workout(workout_id):
     db.session.commit()
     flash("Workout deleted successfully!", "success")
     return redirect(url_for("main.history"))
+
+
+@workouts_bp.route("/<int:workout_id>/link-technogym", methods=["POST"])
+def link_technogym(workout_id):
+    """Attach overlapping Technogym records to a hand-logged session.
+
+    For the gym-plus-app workflow: weights logged here, cardio captured by
+    Technogym's machines. Runs the same conservative rule the importer uses,
+    on demand — for records that arrived before the session was logged, or
+    were skipped for any reason. Idempotent: already-linked records are
+    skipped, so pressing it twice changes nothing.
+    """
+    from ..services import sessions as session_service
+
+    workout = Workout.query.get_or_404(workout_id)
+    candidates = session_service.link_candidates(workout)
+    linked = sum(
+        session_service.link_activity_to_workout(activity, workout)
+        for activity in candidates
+    )
+    db.session.commit()
+
+    if linked:
+        flash(f"Attached {linked} Technogym record(s) to this session.",
+              "success")
+    else:
+        flash("No unlinked Technogym records overlap this session.", "info")
+    return redirect(url_for("main.workout_detail", workout_id=workout.id))
 
 
 # ===================================================================

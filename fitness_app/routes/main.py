@@ -359,8 +359,15 @@ def history():
 @main_bp.route("/workout/<int:workout_id>")
 def workout_detail(workout_id):
     """View a single workout."""
+    from ..services import sessions as session_service
+
     workout = Workout.query.get_or_404(workout_id)
-    return render_template("workout_detail.html", workout=workout)
+    return render_template(
+        "workout_detail.html",
+        workout=workout,
+        linked_activities=session_service.linked_activities(workout),
+        link_candidates=session_service.link_candidates(workout),
+    )
 
 
 @main_bp.route("/activities")

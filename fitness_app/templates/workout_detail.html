@@ -73,6 +73,53 @@
 <p>No exercises recorded for this workout.</p>
 {% endif %}
 
+<!--
+  Linked Technogym records
+  ------------------------
+  Cardio the machines captured during this visit (programs with varying
+  speed/incline are too granular to log by hand). Linked, never merged:
+  both halves stay intact and read as one session.
+-->
+{% if linked_activities %}
+<h2>Also in this session (Technogym)</h2>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Time</th>
+            <th>Activity</th>
+            <th>Duration</th>
+            <th>Distance</th>
+            <th>Calories</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for activity in linked_activities %}
+        <tr>
+            <td>{{ activity.started_at.strftime('%H:%M') }}</td>
+            <td>{{ activity.activity_type }}</td>
+            <td>{% if activity.duration_seconds %}{{ (activity.duration_seconds / 60)|int }} min{% else %}--{% endif %}</td>
+            <td>{% if activity.distance_m %}{{ "%.0f"|format(activity.distance_m) }} m{% else %}--{% endif %}</td>
+            <td>{% if activity.calories %}{{ "%.0f"|format(activity.calories) }}{% else %}--{% endif %}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+{% if link_candidates and workout.source == 'manual' %}
+<div class="import-panel">
+    <h2>Technogym records from this visit</h2>
+    <p class="text-muted">
+        {{ link_candidates|length }} unlinked Technogym record(s) overlap this
+        session. Attach them to read the visit whole — nothing is merged,
+        both halves stay intact.
+    </p>
+    <form method="POST" action="{{ url_for('workouts.link_technogym', workout_id=workout.id) }}">
+        <button type="submit" class="btn btn-secondary">Attach Technogym records</button>
+    </form>
+</div>
+{% endif %}
+
 <div class="form-actions">
     <a href="{{ url_for('workouts.edit_workout', workout_id=workout.id) }}" class="btn btn-primary">Edit</a>
     <form method="POST" action="{{ url_for('workouts.delete_workout', workout_id=workout.id) }}" style="display: inline;">

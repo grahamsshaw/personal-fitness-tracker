@@ -18,11 +18,15 @@ from datetime import datetime
 from pathlib import Path
 
 from .base import BaseImporter, ImportResult
-from ..models import db, Activity, BodyMeasurement, Exercise, Equipment, ImportLog, Person
+from ..models import (
+    db, Activity, BodyMeasurement, Exercise, Equipment, ImportLog, Person,
+    Workout,
+)
 from ..services.measurements import (
     describe_conflict,
     supersede_mismatches_within_day,
 )
+from ..services import sessions as session_service
 
 
 @dataclass
@@ -119,6 +123,9 @@ class TechnogymManualImporter(BaseImporter):
 
         # Import masterdata (profile)
         self._import_masterdata(person, result)
+
+        # Link new activities into overlapping hand-logged sessions.
+        self._link_sessions(person, result)
 
         db.session.commit()
         return result
@@ -252,6 +259,30 @@ class TechnogymManualImporter(BaseImporter):
             )
             db.session.add(log)
             result.records_created += 1
+
+    def _link_sessions(self, person: Person, result: ImportResult) -> None:
+        """Link activities into overlapping hand-logged sessions.
+
+        A guided weights session and the Technogym cardio from the same
+        visit are one session recorded twice. Linking is conservative (see
+        :mod:`services.sessions`) and reported, never silent: the note names
+        what was attached where. Runs once after all activities are stored,
+        so one pass covers files in any order.
+
+        Args:
+            person: Whose sessions to link.
+            result: ImportResult to append notes to.
+        """
+        for workout in Workout.query.filter_by(
+            person_id=person.id, source="manual"
+        ).all():
+            for activity in session_service.link_candidates(workout):
+                if session_service.link_activity_to_workout(activity, workout):
+                    result.notes.append(
+                        f"Linked Technogym {activity.activity_type} "
+                        f"({activity.started_at:%Y-%m-%d %H:%M}) into "
+                        f"hand-logged session '{workout.workout_name}'."
+                    )
 
     def _import_outdoor_activities(self, person: Person, result: ImportResult):
         """Import outdoor activities (rowing, etc.)."""
