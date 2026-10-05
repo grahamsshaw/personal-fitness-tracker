@@ -1,8 +1,9 @@
 # Secrets
 .env
 
-# Data (database, imported files, backups)
-data/
+# Data (database, imported files, backups) - root folder only, so that
+# fitness_app/static/data (shipped map geometry) is still committed.
+/data/
 backups/
 *.db
 
