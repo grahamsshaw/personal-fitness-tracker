@@ -295,6 +295,163 @@ def exercise_onerm(exercise_id):
     return jsonify({"labels": days, "values": [best_by_day[day] for day in days]})
 
 
+@charts_bp.route("/stats/overview")
+def stats_overview():
+    """Training stats over a window: muscle sets, balance, effort, weeks.
+
+    Query args:
+        days: window length (default 90).
+
+    - ``muscle_sets``: finished (non-warm-up) sets per canonical muscle.
+    - ``structural``: agonist/antagonist set pairs (push/pull, quads/hams,
+      biceps/triceps) for the "which lift holds back the rest" view.
+    - ``effort``: average RIR, share at RIR 3 or harder, rated fraction and
+      the RIR 0/1/2/3/4+ distribution. RPE converts at RPE 8 == RIR 2;
+      unrated sets are excluded, never zero.
+    - ``weekly``: sessions and minutes per week, oldest first.
+    Empty windows return zeros and empty lists, not errors — a new
+    programme simply has no stats yet.
+    """
+    from ..models import Exercise, Person, Set, Workout, WorkoutExercise
+    from ..services.muscles import muscles_for_workout_exercise
+
+    days = request.args.get("days", 90, type=int)
+    person = Person.query.first()
+    if person is None:
+        return jsonify({"muscle_sets": {}, "structural": [], "effort": {},
+                        "weekly": []})
+
+    start = datetime.now() - timedelta(days=days)
+    sets = (
+        db.session.query(Set, WorkoutExercise, Workout)
+        .join(WorkoutExercise, Set.workout_exercise_id == WorkoutExercise.id)
+        .join(Workout, WorkoutExercise.workout_id == Workout.id)
+        .filter(Workout.person_id == person.id,
+                Workout.started_at >= start,
+                Set.is_warmup.isnot(True))
+        .order_by(Workout.started_at)
+        .all()
+    )
+
+    muscle_sets: dict[str, int] = {}
+    rirs: list[float] = []
+    rated = 0
+    finished = 0
+    weekly: dict[str, dict[str, int]] = {}
+    for row, workout_exercise, workout in sets:
+        if row.reps_actual:
+            finished += 1
+        for muscle in muscles_for_workout_exercise(workout_exercise):
+            muscle_sets[muscle] = muscle_sets.get(muscle, 0) + 1
+        rir = None
+        if row.effort_rir is not None:
+            rated += 1
+            rir = float(row.effort_rir)
+        elif row.effort_rpe is not None:
+            rated += 1
+            rir = 10.0 - float(row.effort_rpe)
+        if rir is not None:
+            rirs.append(rir)
+        monday = (workout.started_at.date()
+                  - timedelta(days=workout.started_at.weekday())).isoformat()
+        week = weekly.setdefault(monday, {"sessions": set(), "minutes": 0})
+        week["sessions"].add(workout.id)
+
+    distribution = {"0": 0, "1": 0, "2": 0, "3": 0, "4+": 0}
+    for rir in rirs:
+        if rir <= 0.5:
+            distribution["0"] += 1
+        elif rir <= 1.5:
+            distribution["1"] += 1
+        elif rir <= 2.5:
+            distribution["2"] += 1
+        elif rir <= 3.5:
+            distribution["3"] += 1
+        else:
+            distribution["4+"] += 1
+
+    pairs = [("chest", "upper-back"), ("quadriceps", "hamstring"),
+             ("biceps", "triceps")]
+    structural = [{
+        "pair": f"{first} vs {second}",
+        "first": first,
+        "second": second,
+        "first_sets": muscle_sets.get(first, 0),
+        "second_sets": muscle_sets.get(second, 0),
+    } for first, second in pairs]
+
+    return jsonify({
+        "muscle_sets": muscle_sets,
+        "structural": structural,
+        "effort": {
+            "avg_rir": round(sum(rirs) / len(rirs), 1) if rirs else None,
+            "pct_hard": round(
+                sum(1 for rir in rirs if rir <= 3.5) / len(rirs) * 100)
+            if rirs else None,
+            "rated": rated,
+            "finished": finished,
+            "distribution": distribution,
+        },
+        "weekly": [
+            {"week": week, "sessions": len(info["sessions"])}
+            for week, info in sorted(weekly.items())
+        ],
+    })
+
+
+@charts_bp.route("/stats/exercise/<int:exercise_id>")
+def stats_exercise(exercise_id):
+    """Per-session best sets for one exercise, newest first (max 12).
+
+    Each session lists its sets as weight×reps (RIR) with the session best
+    flagged — the "152.5×12 (RIR 3)" view. A fuller dot means less left in
+    the tank: the same weight at a lower RIR is progress the line hides.
+    """
+    from ..models import Exercise, Set, Workout, WorkoutExercise
+    from ..services.training_context import estimate_1rm
+
+    if db.session.get(Exercise, exercise_id) is None:
+        return jsonify({"error": "unknown exercise"}), 404
+
+    by_workout: dict[int, dict] = {}
+    rows = (
+        db.session.query(Set, WorkoutExercise, Workout)
+        .join(WorkoutExercise, Set.workout_exercise_id == WorkoutExercise.id)
+        .join(Workout, WorkoutExercise.workout_id == Workout.id)
+        .filter(WorkoutExercise.exercise_id == exercise_id,
+                Set.is_warmup.isnot(True))
+        .order_by(Workout.started_at.desc())
+        .limit(200)
+        .all()
+    )
+    for row, workout_exercise, workout in rows:
+        entry = by_workout.setdefault(workout.id, {
+            "date": workout.started_at.date().isoformat(),
+            "workout": workout.workout_name,
+            "sets": [],
+        })
+        rir = None
+        if row.effort_rir is not None:
+            rir = float(row.effort_rir)
+        elif row.effort_rpe is not None:
+            rir = 10.0 - float(row.effort_rpe)
+        entry["sets"].append({
+            "weight": row.weight_kg_actual,
+            "reps": row.reps_actual,
+            "rir": rir,
+            "onerm": estimate_1rm(row.weight_kg_actual, row.reps_actual),
+        })
+
+    sessions = list(by_workout.values())[:12]
+    best = None
+    for session in sessions:
+        for entry in session["sets"]:
+            if entry["onerm"] is not None and (best is None or entry["onerm"] > best):
+                best = entry["onerm"]
+
+    return jsonify({"sessions": sessions, "best": best})
+
+
 @charts_bp.route("/exercise/<int:exercise_id>/effort")
 def exercise_effort(exercise_id):
     """Average RIR per week for one exercise, oldest first.

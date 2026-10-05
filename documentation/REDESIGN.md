@@ -66,14 +66,21 @@ on its own.
   placeholders; logged history moves future targets; deleting a routine
   never touches history. Dashboard today card starts today's routine.
 
-### Phase 4 — Library, stats, measurements (built, except noted)
+### Phase 4 — Library, stats, measurements (built)
 - Searchable exercise library UI (filter by equipment, muscle preview,
-  instructions, custom exercises).
-- Stats additions: activity heatmap, weight goal line, 1RM curves, effort trends.
-- Body measurements beyond weight (waist, arms…) — the model already allows
-  any `measurement_type`.
-- Plate calculator.
-- Strong/Hevy-style CSV import (same importer architecture; fuzzy headers).
+  instructions, custom exercises) with detail pages carrying 1RM and
+  effort charts.
+- Stats page (`/stats`): muscle balance by sets, structural pairs, effort
+  aggregate + RIR distribution, week-by-week sessions, body-weight trend,
+  per-exercise progress, recent sessions. Timeframe tabs on both stats
+  and activities (week/30d/90d/6mo/1yr/5yr); 30 days default.
+- Day summaries excluded from every minute total (heatmap, week, duration
+  chart); walking split into tracked sessions vs daily totals.
+- Body measurements beyond weight (waist, arms…) with latest-per-type
+  table and a generic series endpoint.
+- Plate calculator linked from the runner.
+- Strong/Hevy-style CSV import (same importer architecture; fuzzy
+  headers). Verified on synthetic files only — real-export check pending.
 
 ### Phase 5 — Assistant (LLM)
 - Adopt the fork's principles, not its code: judgement/configure vs

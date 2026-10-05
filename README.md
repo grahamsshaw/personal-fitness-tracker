@@ -101,6 +101,8 @@ documentation/
 **Charts**
 - Weight over time and BMI over time (Profile page)
 - Activity duration, calories and activity types (Activities page)
+- Stats page (`/stats`): muscle balance, structural pairs, effort stats,
+  week-by-week sessions, per-exercise progress, recent sessions
 - Manual weight entry, so the charts are useful even with no imports
 - Chart.js fed by `/api/charts/*` - no build step, easy to add more charts
 - Current weight and BMI always shown with the source they came from

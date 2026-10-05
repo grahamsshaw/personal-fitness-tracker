@@ -210,10 +210,11 @@ function createBMIChart(canvasId, data) {
  * Create a bar chart for activity duration over time
  */
 function createActivityChart(canvasId, data) {
+    clearChart(canvasId);
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
 
-    return new Chart(ctx, {
+    chartRegistry[canvasId] = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: data.labels,
@@ -257,10 +258,11 @@ function createActivityChart(canvasId, data) {
  * Create a bar chart for activity calories over time
  */
 function createCaloriesChart(canvasId, data) {
+    clearChart(canvasId);
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
 
-    return new Chart(ctx, {
+    chartRegistry[canvasId] = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: data.labels,
@@ -376,18 +378,40 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Activity charts
-    if (document.getElementById('activity-chart')) {
-        fetch('/api/charts/activities?days=90')
+    // Activity charts, reloaded by the timeframe tabs (30 days default).
+    let activityDays = 30;
+
+    function loadActivityCharts() {
+        fetch(`/api/charts/activities?days=${activityDays}`)
             .then(response => response.json())
-            .then(data => createActivityChart('activity-chart', data))
+            .then(data => {
+                if (document.getElementById('activity-chart')) {
+                    createActivityChart('activity-chart', data);
+                }
+            })
             .catch(error => console.error('Error loading activity data:', error));
+
+        fetch(`/api/charts/activities?days=${activityDays}`)
+            .then(response => response.json())
+            .then(data => {
+                if (document.getElementById('calories-chart')) {
+                    createCaloriesChart('calories-chart', data);
+                }
+            })
+            .catch(error => console.error('Error loading calories data:', error));
     }
 
-    if (document.getElementById('calories-chart')) {
-        fetch('/api/charts/activities?days=90')
-            .then(response => response.json())
-            .then(data => createCaloriesChart('calories-chart', data))
-            .catch(error => console.error('Error loading calories data:', error));
+    if (document.getElementById('activity-chart') || document.getElementById('calories-chart')) {
+        loadActivityCharts();
+
+        document.querySelectorAll('#timeframe-tabs .chip').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('#timeframe-tabs .chip').forEach(
+                    other => other.classList.remove('active'));
+                btn.classList.add('active');
+                activityDays = parseInt(btn.getAttribute('data-days'), 10) || 30;
+                loadActivityCharts();
+            });
+        });
     }
 });

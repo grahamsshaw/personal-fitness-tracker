@@ -464,6 +464,13 @@ PLATE_SIZES = [25.0, 20.0, 15.0, 10.0, 5.0, 2.5, 1.25]
 BAR_WEIGHT_KG = 20.0
 
 
+@main_bp.route("/stats")
+def stats():
+    """Training stats page: muscle balance, effort, weekly, progress."""
+    exercises = Exercise.query.order_by(Exercise.name).all()
+    return render_template("stats.html", exercises=exercises)
+
+
 @main_bp.route("/plate-calculator")
 def plate_calculator():
     """Plate calculator: plates per side for a target bar weight.
@@ -523,34 +530,49 @@ def workout_detail(workout_id):
 @main_bp.route("/activities")
 def activities():
     """Activity charts page."""
-    # Get summary stats
-    total_activities = Activity.query.count()
+    from ..services.training_context import is_daily_summary
+
+    # Summary stats exclude day summaries: a 1439-minute "walk" is
+    # background life, not training, and would drown every total. The rule
+    # lives in training_context.is_daily_summary (prefix matching with
+    # NULLs has no clean SQL spelling), so ids filter in Python and the
+    # sums stay in SQL.
+    genuine_ids = [
+        activity.id for activity in Activity.query.all()
+        if not is_daily_summary(activity)
+    ]
+    total_activities = len(genuine_ids)
 
     total_duration = db.session.query(
         db.func.sum(Activity.duration_seconds)
-    ).scalar() or 0
+    ).filter(Activity.id.in_(genuine_ids)).scalar() or 0
 
     total_calories = db.session.query(
         db.func.sum(Activity.calories)
     ).scalar() or 0
 
-    # Walking in the last 30 days: time, distance, steps, calories. Walking
-    # is where non-gym life shows up (commutes, station walks, gym trips),
-    # so it gets its own summary rather than dissolving into the totals.
-    # Steps come from the steps column, never parsed out of notes text.
+    # Walking in the last 30 days, split two ways. Tracked walks are the
+    # sessions the watch actually detected (your 10-minute-walk alerts live
+    # here); daily totals are the background rollups. Previously one number
+    # lumped both and read as walking every minute of every day.
     month_start = datetime.now() - timedelta(days=30)
     walking = Activity.query.filter(
         Activity.activity_type == "walking",
         Activity.started_at >= month_start,
     ).all()
+    sessions = [a for a in walking if not is_daily_summary(a)]
+    daily = [a for a in walking if is_daily_summary(a)]
     walking_summary = {
-        "sessions": len(walking),
+        "sessions": len(sessions),
         "minutes": sum(
-            (a.duration_seconds or 0) for a in walking
+            (a.duration_seconds or 0) for a in sessions
         ) // 60,
-        "km": round(sum(a.distance_m or 0 for a in walking) / 1000, 1),
-        "steps": sum(a.steps or 0 for a in walking),
-        "calories": round(sum(a.calories or 0 for a in walking)),
+        "km": round(sum(a.distance_m or 0 for a in sessions) / 1000, 1),
+        "calories": round(sum(a.calories or 0 for a in sessions)),
+        "steps": sum(a.steps or 0 for a in daily),
+        "daily_km": round(sum(a.distance_m or 0 for a in daily) / 1000, 1),
+        "daily_calories": round(sum(a.calories or 0 for a in daily)),
+        "days": len({a.started_at.date() for a in daily}),
     }
 
     return render_template(
