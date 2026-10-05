@@ -280,6 +280,19 @@ GET /api/health-connect/status
 
 ## 9. Next steps
 
+0. **Try the Health Data Export app first (no custom app needed)** — the Play
+   Store app *Health Data Export* (`com.teqxnology.healthdataexport`) reads
+   Health Connect on-device and exports to **CSV** (saved to the phone) or
+   Google Sheets. It covers Activity (steps, distance, exercise sessions,
+   calories), Body measurements (weight, height, body fat), Sleep sessions
+   and Vitals (heart rate, resting HR, HRV). It collects no user data.
+   The CSV route is the right first integration:
+   - Export CSV on the phone (bulk history first, then small ranges).
+   - Transfer the file to the Pi and import it with a CSV importer —
+     the same pattern as the Technogym manual JSON export.
+   - CSV keeps the data at home; Google Sheets would hand it to Google and
+     need Sheets API credentials on the Pi for no benefit.
+   - A custom phone app is only worth building if this proves inadequate.
 1. **Confirm data origins** — on the phone, open Health Connect → see which
    apps contribute weight, exercise, steps, heart rate.
 2. ~~**Build the Pi endpoint**~~ — **done**: `POST /api/health-connect/push`
