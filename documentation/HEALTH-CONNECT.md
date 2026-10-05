@@ -282,10 +282,12 @@ GET /api/health-connect/status
 
 1. **Confirm data origins** — on the phone, open Health Connect → see which
    apps contribute weight, exercise, steps, heart rate.
-2. **Build the minimal phone app** — read weight + exercise records, POST them
+2. ~~**Build the Pi endpoint**~~ — **done**: `POST /api/health-connect/push`
+   with API-key auth, idempotency, workout enrichment and conflict reporting,
+   plus unauthenticated `GET /api/health-connect/status`. Verified with 44
+   automated checks against a scratch database.
+3. **Build the minimal phone app** — read weight + exercise records, POST them
    to the Pi endpoint with the API key. Manual "Sync" button only.
-3. **Build the Pi endpoint** — `POST /api/health-connect/push` with the
-   idempotency + enrichment logic from section 7.
 4. **Test with real data** — Health Connect Toolbox can write sample records if
    real data is thin; adjust the mapping to what actually arrives.
 5. **Add Pi-side processing (Option C)** — matching/enrichment cron once pushes

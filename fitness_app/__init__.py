@@ -67,6 +67,7 @@ def create_app(config=None):
     from .routes.equipment import equipment_bp
     from .routes.imports import imports_bp
     from .routes.charts import charts_bp
+    from .routes.health_connect import health_connect_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp, url_prefix="/api")
@@ -74,6 +75,7 @@ def create_app(config=None):
     app.register_blueprint(equipment_bp, url_prefix="/equipment")
     app.register_blueprint(imports_bp, url_prefix="/imports")
     app.register_blueprint(charts_bp, url_prefix="/api/charts")
+    app.register_blueprint(health_connect_bp, url_prefix="/api/health-connect")
 
     # Create tables for anything not yet present, then bring existing tables up
     # to date. create_all() alone will not add a column to a table that
