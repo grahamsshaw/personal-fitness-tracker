@@ -291,6 +291,11 @@ class WorkoutExercise(db.Model):
     exercise_order = db.Column(db.Integer, default=0)
     source = db.Column(db.String(50), default="manual")
     source_id = db.Column(db.String(100))
+    # Session targets, set when the session starts from a routine. Displayed
+    # as placeholders; the runner still pre-fills from last logged
+    # performance when no target exists.
+    target_weight_kg = db.Column(db.Float)
+    target_reps = db.Column(db.Integer)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     __table_args__ = (
@@ -340,6 +345,59 @@ class Set(db.Model):
 
     def __repr__(self):
         return f"<Set {self.set_number}: {self.reps_actual}reps @ {self.weight_kg_actual}kg>"
+
+
+class Routine(db.Model):
+    """A named workout template assigned to weekdays.
+
+    The plan is structure only: which exercises, what targets, which days,
+    which progression rule. Logged history stays in workouts/sets; starting
+    a routine copies its exercises into a guided session, never the reverse.
+    """
+    __tablename__ = "routines"
+
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.Integer, db.ForeignKey("person.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    # Weekdays this routine runs, JSON list with 0=Monday. Empty = unscheduled.
+    days = db.Column(db.Text, default="[]")
+    # Progression policy: 'linear', 'double_progression' or 'greyskull'.
+    # See services/progression.py for what each rule does.
+    progression_policy = db.Column(db.String(50), default="linear")
+    # Weight increment in kg applied when the policy says advance.
+    increment_kg = db.Column(db.Float, default=2.5)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    exercises = db.relationship(
+        "RoutineExercise", backref="routine", lazy=True,
+        order_by="RoutineExercise.exercise_order",
+        cascade="all, delete-orphan",
+    )
+
+    def __repr__(self):
+        return f"<Routine {self.name}>"
+
+
+class RoutineExercise(db.Model):
+    """One exercise slot in a routine, with targets."""
+    __tablename__ = "routine_exercises"
+
+    id = db.Column(db.Integer, primary_key=True)
+    routine_id = db.Column(db.Integer, db.ForeignKey("routines.id"), nullable=False)
+    exercise_id = db.Column(db.Integer, db.ForeignKey("exercises.id"))
+    exercise_name = db.Column(db.String(200))  # denormalized, always set
+    equipment_id = db.Column(db.Integer, db.ForeignKey("equipment.id"))
+    target_sets = db.Column(db.Integer, default=3)
+    target_reps = db.Column(db.Integer)  # single target; range lives in rep_min/max
+    rep_min = db.Column(db.Integer)  # double progression range bottom
+    rep_max = db.Column(db.Integer)  # double progression range top
+    target_weight_kg = db.Column(db.Float)
+    mode = db.Column(db.String(20), default="reps")
+    exercise_order = db.Column(db.Integer, default=0)
+
+    def __repr__(self):
+        return f"<RoutineExercise {self.exercise_name}>"
 
 
 class ExercisePreference(db.Model):

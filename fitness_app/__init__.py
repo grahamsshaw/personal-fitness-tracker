@@ -32,6 +32,22 @@ def _fromjson(value):
         return None
 
 
+def _weekday(value):
+    """Jinja filter: weekday number (0=Monday) to short name.
+
+    Args:
+        value: 0-6, or anything else for an empty string.
+
+    Returns:
+        e.g. ``"Mon"``.
+    """
+    names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    try:
+        return names[int(value)]
+    except (TypeError, ValueError, IndexError):
+        return ""
+
+
 def create_app(config=None):
     """Application factory pattern."""
     app = Flask(__name__)
@@ -56,6 +72,7 @@ def create_app(config=None):
 
     # Register custom Jinja filters
     app.jinja_env.filters["fromjson"] = _fromjson
+    app.jinja_env.filters["weekday"] = _weekday
 
     # Initialize extensions
     db.init_app(app)
@@ -68,6 +85,7 @@ def create_app(config=None):
     from .routes.imports import imports_bp
     from .routes.charts import charts_bp
     from .routes.health_connect import health_connect_bp
+    from .routes.plan import plan_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp, url_prefix="/api")
@@ -76,6 +94,7 @@ def create_app(config=None):
     app.register_blueprint(imports_bp, url_prefix="/imports")
     app.register_blueprint(charts_bp, url_prefix="/api/charts")
     app.register_blueprint(health_connect_bp, url_prefix="/api/health-connect")
+    app.register_blueprint(plan_bp, url_prefix="/plan")
 
     # Create tables for anything not yet present, then bring existing tables up
     # to date. create_all() alone will not add a column to a table that

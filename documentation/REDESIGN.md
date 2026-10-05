@@ -53,12 +53,18 @@ on its own.
 - Set schema extended (mode, duration, distance, effort, type, warm-up);
   WorkoutExercise gained mode + superset group.
 
-### Phase 3 — Plans, routines, progression
-- Weekly plan (routine per weekday), reschedule without touching the plan.
-- Progression policies per routine: linear, double progression, Greyskull-style
-  AMRAP — standard methodology, reimplemented with tests.
-- Plan share as merge-safe JSON export/import.
-- Needs: Routine/Plan tables.
+### Phase 3 — Plans, routines, progression (built)
+- `Routine`/`RoutineExercise` tables: named templates with weekday
+  assignments, set/rep/weight targets, rep ranges, modes.
+- Progression engine (`services/progression.py`): linear, double
+  progression, Greyskull AMRAP — pure functions, every target says why,
+  misses hold, double stalls deload 10%. Standard methodology,
+  reimplemented with tests.
+- Week grid with today highlight, routine detail with computed next
+  targets, reschedule-without-editing, merge-safe JSON share.
+- "Start session" copies slots into the guided runner with targets as
+  placeholders; logged history moves future targets; deleting a routine
+  never touches history. Dashboard today card starts today's routine.
 
 ### Phase 4 — Library, stats, measurements
 - Searchable exercise library UI (filter by equipment, muscle preview,

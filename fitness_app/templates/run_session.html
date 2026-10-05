@@ -25,6 +25,12 @@
     </h2>
 
     {% set prev = performed.get(we.exercise_id) %}
+    {% if we.target_weight_kg or we.target_reps %}
+    <p class="text-muted">
+        Target: {% if we.target_weight_kg %}{{ we.target_weight_kg }} kg{% endif %}{% if we.target_reps %} × {{ we.target_reps }}{% endif %}
+        (from your plan's progression)
+    </p>
+    {% endif %}
     {% if prev and (prev.weight or prev.reps) %}
     <p class="text-muted">
         Last time:

@@ -274,6 +274,74 @@ def _migrate_activity_steps(connection) -> bool:
     )
 
 
+def _migrate_routines(connection) -> bool:
+    """Create the routines tables and session-target columns.
+
+    - ``routines``: named templates with weekday assignments and a
+      progression policy.
+    - ``routine_exercises``: exercise slots with set/rep/weight targets.
+    - ``workout_exercises.target_weight_kg/target_reps``: per-exercise
+      session targets, set when a session starts from a routine.
+
+    Args:
+        connection: An open SQLAlchemy connection.
+
+    Returns:
+        True if anything changed.
+    """
+    changed = False
+    inspector = inspect(connection)
+
+    if "routines" not in inspector.get_table_names():
+        connection.execute(text(
+            "CREATE TABLE routines ("
+            "id INTEGER NOT NULL PRIMARY KEY, "
+            "person_id INTEGER NOT NULL, "
+            "name VARCHAR(200) NOT NULL, "
+            "days TEXT DEFAULT '[]', "
+            "progression_policy VARCHAR(50) DEFAULT 'linear', "
+            "increment_kg FLOAT DEFAULT 2.5, "
+            "notes TEXT, "
+            "created_at DATETIME, "
+            "FOREIGN KEY (person_id) REFERENCES person (id)"
+            ")"
+        ))
+        changed = True
+
+    if "routine_exercises" not in inspector.get_table_names():
+        connection.execute(text(
+            "CREATE TABLE routine_exercises ("
+            "id INTEGER NOT NULL PRIMARY KEY, "
+            "routine_id INTEGER NOT NULL, "
+            "exercise_id INTEGER, "
+            "exercise_name VARCHAR(200), "
+            "equipment_id INTEGER, "
+            "target_sets INTEGER DEFAULT 3, "
+            "target_reps INTEGER, "
+            "rep_min INTEGER, "
+            "rep_max INTEGER, "
+            "target_weight_kg FLOAT, "
+            "mode VARCHAR(20) DEFAULT 'reps', "
+            "exercise_order INTEGER DEFAULT 0, "
+            "FOREIGN KEY (routine_id) REFERENCES routines (id), "
+            "FOREIGN KEY (exercise_id) REFERENCES exercises (id), "
+            "FOREIGN KEY (equipment_id) REFERENCES equipment (id)"
+            ")"
+        ))
+        changed = True
+
+    if changed:
+        logger.info("Created routines tables")
+
+    changed |= _ensure_column(
+        connection, "workout_exercises", "target_weight_kg", "FLOAT"
+    )
+    changed |= _ensure_column(
+        connection, "workout_exercises", "target_reps", "INTEGER"
+    )
+    return changed
+
+
 #: Migrations applied in order at start-up. Each must be idempotent.
 MIGRATIONS = (
     _migrate_body_measurements,
@@ -283,6 +351,7 @@ MIGRATIONS = (
     _migrate_person_goal,
     _migrate_workout_sets,
     _migrate_activity_steps,
+    _migrate_routines,
 )
 
 

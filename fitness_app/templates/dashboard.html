@@ -76,6 +76,21 @@
     </div>
 </div>
 
+{% if todays_routines %}
+<div class="import-panel">
+    <h2>Today's plan</h2>
+    {% for routine in todays_routines %}
+    <p>
+        <strong>{{ routine.name }}</strong>
+        ({{ routine.exercises|length }} exercises, {{ routine.progression_policy }})
+    </p>
+    <form method="POST" action="{{ url_for('plan.start_routine', routine_id=routine.id) }}">
+        <button type="submit" class="btn btn-primary">Start {{ routine.name }}</button>
+    </form>
+    {% endfor %}
+</div>
+{% endif %}
+
 <div class="dashboard-section">
     <h2>Recent Workouts</h2>
     {% if recent_workouts %}
@@ -108,6 +123,7 @@
     <h2>Quick Actions</h2>
     <div class="quick-actions">
         <a href="{{ url_for('workouts.run_setup') }}" class="btn btn-primary">Start Guided Session</a>
+        <a href="{{ url_for('plan.week') }}" class="btn btn-secondary">Weekly Plan</a>
         <a href="{{ url_for('workouts.new_workout') }}" class="btn btn-secondary">Log Workout</a>
         <a href="{{ url_for('equipment.new_equipment') }}" class="btn btn-secondary">Add Equipment</a>
         <a href="{{ url_for('main.profile') }}" class="btn btn-secondary">Edit Profile</a>

@@ -93,6 +93,20 @@ def dashboard():
         training_context.weekly_by_source(person.id) if person else None
     )
 
+    # Today's planned routines, if any.
+    todays_routines = []
+    if person:
+        import json as json_module
+        from ..models import Routine
+        weekday = today.weekday()
+        for routine in Routine.query.filter_by(person_id=person.id).all():
+            try:
+                days = json_module.loads(routine.days or "[]")
+            except (ValueError, TypeError):
+                days = []
+            if weekday in days:
+                todays_routines.append(routine)
+
     return render_template(
         "dashboard.html",
         person=person,
@@ -107,6 +121,7 @@ def dashboard():
         goal_progress=goal_progress,
         neglected=neglected,
         week_breakdown=week_breakdown,
+        todays_routines=todays_routines,
     )
 
 

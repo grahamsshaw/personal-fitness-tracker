@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}{{ routine.name }} - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>{{ routine.name }}</h1>
+<p class="text-muted">
+    {{ routine.progression_policy }} &middot; +{{ routine.increment_kg }} kg
+    &middot; {{ days | map('weekday') | join(', ') if days else 'Unscheduled' }}
+</p>
+{% if routine.notes %}<p>{{ routine.notes }}</p>{% endif %}
+
+<div class="form-actions">
+    <form method="POST" action="{{ url_for('plan.start_routine', routine_id=routine.id) }}" style="display:inline">
+        <button type="submit" class="btn btn-primary">Start session from this routine</button>
+    </form>
+</div>
+
+<h2>Exercises and next targets</h2>
+<p class="text-muted">Targets are computed from logged history by the progression engine — each says why.</p>
+
+{% if routine.exercises %}
+<table class="table">
+    <thead>
+        <tr>
+            <th>Exercise</th>
+            <th>Sets × Reps</th>
+            <th>Next target</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for slot in routine.exercises %}
+        {% set target = targets.get(slot.id) %}
+        <tr>
+            <td>{{ slot.exercise_name }}</td>
+            <td>{{ slot.target_sets }} × {% if slot.rep_min and slot.rep_max %}{{ slot.rep_min }}–{{ slot.rep_max }}{% elif slot.target_reps %}{{ slot.target_reps }}{% else %}--{% endif %}</td>
+            <td>
+                {% if target %}
+                    {{ target.weight }} kg × {{ target.reps }}
+                    <br><small class="text-muted">{{ target.rationale }}</small>
+                {% else %}
+                    --
+                {% endif %}
+            </td>
+            <td>
+                <form method="POST" action="{{ url_for('plan.delete_slot', routine_id=routine.id, slot_id=slot.id) }}" style="display:inline" onsubmit="return confirm('Remove this exercise?');">
+                    <button type="submit" class="btn btn-small">Remove</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No exercises yet — add the first below.</p>
+{% endif %}
+
+<h2>Add exercise</h2>
+<form method="POST" action="{{ url_for('plan.add_slot', routine_id=routine.id) }}" class="form">
+    <div class="form-group">
+        <label for="exercise_id">From the library</label>
+        <select id="exercise_id" name="exercise_id">
+            <option value="">-- Pick --</option>
+            {% for exercise in exercises %}
+            <option value="{{ exercise.id }}">{{ exercise.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="exercise_name">Or type a name</label>
+        <input type="text" id="exercise_name" name="exercise_name" placeholder="Used when nothing is picked above">
+    </div>
+    <div class="form-group">
+        <label for="target_sets">Sets</label>
+        <input type="number" id="target_sets" name="target_sets" value="3">
+    </div>
+    <div class="form-group">
+        <label for="target_reps">Reps (single target)</label>
+        <input type="number" id="target_reps" name="target_reps" value="10">
+    </div>
+    <div class="form-group">
+        <label>Rep range (double progression; leave blank for single target)</label>
+        <input type="number" name="rep_min" placeholder="8" style="width: 5rem">
+        <input type="number" name="rep_max" placeholder="12" style="width: 5rem">
+    </div>
+    <div class="form-group">
+        <label for="target_weight_kg">Starting weight (kg)</label>
+        <input type="number" id="target_weight_kg" name="target_weight_kg" step="0.5" value="20">
+    </div>
+    <div class="form-group">
+        <label for="mode">Mode</label>
+        <select id="mode" name="mode">
+            <option value="reps">Weight × reps</option>
+            <option value="time">Timed</option>
+            <option value="cardio">Cardio</option>
+        </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Add exercise</button>
+</form>
+
+<h2>Schedule</h2>
+<form method="POST" action="{{ url_for('plan.move_routine', routine_id=routine.id) }}" class="form">
+    <div class="form-group">
+        {% for day in range(7) %}
+        <label><input type="checkbox" name="days" value="{{ day }}" {% if day in days %}checked{% endif %}> {{ weekdays[day] }}</label>
+        {% endfor %}
+    </div>
+    <p class="text-muted">Moving days never edits the routine itself.</p>
+    <button type="submit" class="btn btn-secondary">Update schedule</button>
+</form>
+
+<h2>Danger zone</h2>
+<form method="POST" action="{{ url_for('plan.delete_routine', routine_id=routine.id) }}" onsubmit="return confirm('Delete this routine? Logged workouts are kept.');">
+    <button type="submit" class="btn btn-danger">Delete routine</button>
+</form>
+{% endblock %}

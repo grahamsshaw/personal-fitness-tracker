@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'New Routine' if not routine else routine.name }} - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>{{ 'New Routine' if not routine else routine.name }}</h1>
+
+<form method="POST" class="form">
+    <div class="form-group">
+        <label for="name">Routine name *</label>
+        <input type="text" id="name" name="name" required placeholder="e.g. Upper body strength">
+    </div>
+
+    <div class="form-group">
+        <label>Days (tick the weekdays this runs)</label>
+        {% for day in range(7) %}
+        <label><input type="checkbox" name="days" value="{{ day }}"> {{ ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][day] }}</label>
+        {% endfor %}
+    </div>
+
+    <div class="form-group">
+        <label for="progression_policy">Progression policy</label>
+        <select id="progression_policy" name="progression_policy">
+            {% for policy in policies %}
+            <option value="{{ policy }}">{{ policy }}</option>
+            {% endfor %}
+        </select>
+        <p class="text-muted">Linear: add weight when all reps hit. Double progression: climb reps 8–12 first. Greyskull: AMRAP last set, 10% reset after two stalls.</p>
+    </div>
+
+    <div class="form-group">
+        <label for="increment_kg">Weight increment (kg)</label>
+        <input type="number" id="increment_kg" name="increment_kg" step="0.5" value="2.5">
+    </div>
+
+    <div class="form-group">
+        <label for="notes">Notes</label>
+        <textarea id="notes" name="notes" rows="3"></textarea>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Create routine</button>
+</form>
+{% endblock %}
