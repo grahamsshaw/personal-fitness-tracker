@@ -176,7 +176,19 @@ function createMeasurementChart(canvasId, data, measurementType) {
                 // A diamond reads as "not in use" more clearly than a hollow
                 // circle, which just looks like a hover state.
                 pointStyle: setAside.map(s => s ? 'rectRot' : 'circle'),
-            }]
+            },
+            // Weight goal, when set: a dashed target line across the chart.
+            // Plain numbers, so the shared tooltip falls back to the value.
+            ...(data.goal != null ? [{
+                label: 'Goal',
+                data: data.labels.map(() => data.goal),
+                borderColor: '#16a34a',
+                borderDash: [6, 4],
+                borderWidth: 2,
+                pointRadius: 0,
+                pointHoverRadius: 0,
+                fill: false,
+            }] : [])]
         },
         options: measurementChartOptions(style.axis)
     });

@@ -5,6 +5,15 @@
 {% block content %}
 <h1>Workout History</h1>
 
+<!--
+  Activity heatmap (last year)
+  -----------------------------
+  GitHub-style grid shaded by training minutes per day. Rendered from
+  divs, not canvas: a year of cells is cheap DOM and needs no chart
+  library. Weeks run top-to-bottom in columns, Monday first.
+-->
+<div id="heatmap" class="heatmap"></div>
+
 {% if workouts.items %}
 <table class="table">
     <thead>
@@ -43,4 +52,56 @@
 {% else %}
 <p>No workouts recorded yet. <a href="{{ url_for('workouts.new_workout') }}">Log your first workout</a>.</p>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  "use strict";
+
+  // Five shade steps: rest days stay blank, anything trained shades up.
+  function shade(minutes) {
+    if (!minutes) return "h0";
+    if (minutes < 20) return "h1";
+    if (minutes < 45) return "h2";
+    if (minutes < 90) return "h3";
+    return "h4";
+  }
+
+  fetch("/api/charts/heatmap")
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      var container = document.getElementById("heatmap");
+      if (!container) return;
+      var days = data.days || {};
+      var today = new Date();
+      // Start on the Monday 52 weeks ago so columns always align.
+      var start = new Date(today);
+      start.setDate(start.getDate() - 364);
+      start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+
+      var week = null;
+      for (var i = 0; i < 371; i++) {
+        var date = new Date(start);
+        date.setDate(start.getDate() + i);
+        if (date.getDay() === 1 || !week) {
+          week = document.createElement("div");
+          week.className = "heatmap-week";
+          container.appendChild(week);
+        }
+        var key = date.toISOString().slice(0, 10);
+        // Local-midnight vs UTC edge: toISOString is UTC, so shift by the
+        // timezone offset to land on the calendar day actually trained.
+        key = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+          .toISOString().slice(0, 10);
+        var cell = document.createElement("div");
+        var minutes = days[key] || 0;
+        cell.className = "heatmap-cell " + shade(minutes);
+        cell.title = key + ": " + minutes + " min";
+        week.appendChild(cell);
+        if (date >= today) break;
+      }
+    });
+})();
+</script>
 {% endblock %}

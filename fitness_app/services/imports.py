@@ -40,6 +40,7 @@ from ..importers.health_connect_csv import HealthConnectCsvImporter
 from ..importers.technogym import TechnogymImporter
 from ..importers.technogym_manual import TechnogymManualImporter
 from ..importers.wii_fit import WiiFitImporter
+from ..importers.workout_csv import GymCsvImporter
 
 # Message levels, matching the Flask flash categories used by the routes.
 INFO = "info"
@@ -141,16 +142,37 @@ def _run_health_connect_csv(**kwargs) -> ImportResult:
     return importer.import_data(**kwargs)
 
 
+def _run_gym_csv(**kwargs) -> ImportResult:
+    """Import workout CSV exports (Strong, Hevy style).
+
+    Raises:
+        ImportUnavailable: If the folder holds no CSV files.
+    """
+    importer = GymCsvImporter()
+
+    if not importer.is_available():
+        raise ImportUnavailable(
+            "gym_csv",
+            f"No CSV files in {importer.data_dir}. "
+            f"Export from your gym logger and copy the files there, "
+            f"or upload them on the import page.",
+        )
+
+    return importer.import_data(**kwargs)
+
+
 #: Source key -> (runner, label used in messages).
 RUNNERS = {
     "wii_fit": (_run_wii_fit, "Wii Fit"),
     "technogym": (_run_technogym, "Technogym"),
     "technogym_manual": (_run_technogym_manual, "Technogym export"),
     "health_connect_csv": (_run_health_connect_csv, "Health Connect CSV"),
+    "gym_csv": (_run_gym_csv, "Workout CSV"),
 }
 
 #: Every source, in the order a scheduled run should process them.
-ALL_SOURCES = ("technogym", "wii_fit", "technogym_manual", "health_connect_csv")
+ALL_SOURCES = ("technogym", "wii_fit", "technogym_manual",
+               "health_connect_csv", "gym_csv")
 
 
 def run_import(source: str, **kwargs) -> ImportResult:

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}{{ exercise.name }} - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>{{ exercise.name }}</h1>
+
+<div class="detail-card">
+    <dl class="detail-list">
+        <dt>Equipment</dt>
+        <dd>{{ exercise.equipment_label or exercise.category or '--' }}</dd>
+
+        <dt>Body part</dt>
+        <dd>{{ exercise.body_part or exercise.muscle_group or '--' }}</dd>
+
+        <dt>Target muscle</dt>
+        <dd>{{ exercise.target_muscle or '--' }}</dd>
+    </dl>
+</div>
+
+{% if exercise.instructions and exercise.instructions != '[]' %}
+<h2>How to perform</h2>
+<ol>
+    {% for step in exercise.instructions | fromjson %}
+    <li>{{ step }}</li>
+    {% endfor %}
+</ol>
+{% endif %}
+
+<h2>Muscles worked</h2>
+<div id="exercise-map"></div>
+
+<h2>1RM estimate over time</h2>
+<p class="text-muted">Best Epley estimate per session from your logged sets.</p>
+<div class="chart-wrapper">
+    <canvas id="onerm-chart"></canvas>
+</div>
+
+<h2>Effort trend</h2>
+<p class="text-muted">Average RIR per week from your logged sets (RPE is converted: RPE 8 == RIR 2).</p>
+<div class="chart-wrapper">
+    <canvas id="effort-chart"></canvas>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/muscles.js') }}"></script>
+<script>
+BodyMap.render("exercise-map", {
+  highlight: {{ map_muscles | tojson }},
+  interactive: false
+});
+
+function lineChart(canvasId, labels, values, label, rgb) {
+  var ctx = document.getElementById(canvasId);
+  if (!ctx || !labels.length) return;
+  new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: label,
+        data: values,
+        borderColor: "rgb(" + rgb + ")",
+        backgroundColor: "rgba(" + rgb + ", 0.1)",
+        tension: 0.1,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: false } }
+    }
+  });
+}
+
+fetch("{{ url_for('charts.exercise_onerm', exercise_id=exercise.id) }}")
+  .then(function (r) { return r.json(); })
+  .then(function (d) { lineChart("onerm-chart", d.labels, d.values, "Estimated 1RM (kg)", "37, 99, 235"); });
+
+fetch("{{ url_for('charts.exercise_effort', exercise_id=exercise.id) }}")
+  .then(function (r) { return r.json(); })
+  .then(function (d) { lineChart("effort-chart", d.labels, d.values, "Avg RIR", "22, 163, 74"); });
+</script>
+{% endblock %}

@@ -283,6 +283,7 @@ def _dry_run(sources: list[str], log) -> int:
     """
     from fitness_app.importers.wii_fit import WiiFitImporter
     from fitness_app.importers.health_connect_csv import HealthConnectCsvImporter
+    from fitness_app.importers.workout_csv import GymCsvImporter
 
     unreachable = 0
 
@@ -317,6 +318,15 @@ def _dry_run(sources: list[str], log) -> int:
                 f"{len(files)} CSV file(s) in {importer.data_dir}"
                 if ok
                 else f"no CSV files in {importer.data_dir}"
+            )
+        elif source == "gym_csv":
+            importer = GymCsvImporter()
+            files = importer.find_csv_files()
+            ok = importer.is_available()
+            detail = (
+                f"{len(files)} CSV file(s) in {importer.data_dir}"
+                if ok
+                else f"no workout CSV files in {importer.data_dir}"
             )
         else:
             export_dir = PROJECT_ROOT / "data" / "technogym_export"

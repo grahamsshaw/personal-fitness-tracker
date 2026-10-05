@@ -368,6 +368,34 @@ input:focus, select:focus, textarea:focus {
     margin: 1rem 0;
 }
 
+/* Activity heatmap: year grid, Monday-first columns. */
+.heatmap {
+    display: flex;
+    gap: 3px;
+    overflow-x: auto;
+    margin: 1rem 0 2rem;
+    padding: 0.5rem;
+}
+.heatmap-week {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.heatmap-cell {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    background: var(--border);
+}
+.heatmap-cell.h1 { background: #bbf7d0; }
+.heatmap-cell.h2 { background: #4ade80; }
+.heatmap-cell.h3 { background: #16a34a; }
+.heatmap-cell.h4 { background: #14532d; }
+[data-theme="dark"] .heatmap-cell.h1 { background: #14532d; }
+[data-theme="dark"] .heatmap-cell.h2 { background: #15803d; }
+[data-theme="dark"] .heatmap-cell.h3 { background: #22c55e; }
+[data-theme="dark"] .heatmap-cell.h4 { background: #86efac; }
+
 /*
   Themes and responsive layout (Phase 1 redesign)
   ----------------------------------------------

@@ -149,6 +149,50 @@
     {% endif %}
 </div>
 
+<!-- Other body measurements (waist, arms, …) -->
+<div class="import-section">
+    <h2>Log Measurement</h2>
+    <form method="POST" action="{{ url_for('main.log_measurement') }}" class="form-inline">
+        <div class="form-group">
+            <label for="measurement_type">Type</label>
+            <select id="measurement_type" name="measurement_type">
+                {% for mtype, unit in measurement_types %}
+                <option value="{{ mtype }}">{{ mtype.replace('_', ' ') }} ({{ unit }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="mvalue">Value</label>
+            <input type="number" id="mvalue" name="value" step="0.1" min="0" required>
+        </div>
+        <div class="form-group">
+            <label for="measured_date">Date</label>
+            <input type="date" id="measured_date" name="measured_date" value="{{ today }}">
+        </div>
+        <button type="submit" class="btn btn-primary">Log</button>
+    </form>
+    {% if other_measurements %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th>Latest</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in other_measurements %}
+            <tr>
+                <td>{{ m.measurement_type.replace('_', ' ') }}</td>
+                <td>{{ m.value }} {{ m.unit }}</td>
+                <td>{{ m.measured_at.strftime('%Y-%m-%d') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+
 <!-- Profile Form -->
 <h2>Edit Profile</h2>
 <form method="POST" class="form">

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Exercise Library - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>Exercise Library</h1>
+
+<form method="GET" action="{{ url_for('equipment.exercise_library') }}" class="form">
+    <div class="form-group">
+        <label for="q">Search ({{ exercises|length }} shown, 200 max)</label>
+        <input type="text" id="q" name="q" value="{{ query }}" placeholder="e.g. press, row, squat, curl">
+    </div>
+    <div class="form-group">
+        <label for="equipment_id">Equipment</label>
+        <select id="equipment_id" name="equipment_id">
+            <option value="">-- Everything --</option>
+            {% for item in equipment %}
+            <option value="{{ item.id }}" {% if equipment_id == item.id %}selected{% endif %}>{{ item.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="muscle">Muscle</label>
+        <select id="muscle" name="muscle">
+            <option value="">-- Any --</option>
+            {% for slug, label in [('chest','Chest'),('back','Back'),('upper-back','Upper back'),('shoulders','Shoulders'),('deltoids','Shoulders'),('biceps','Biceps'),('triceps','Triceps'),('abs','Abs'),('obliques','Obliques'),('glutes','Glutes'),('gluteal','Glutes'),('quadriceps','Quads'),('quads','Quads'),('hamstring','Hamstrings'),('hamstrings','Hamstrings'),('calves','Calves'),('trapezius','Traps')] %}
+            <option value="{{ slug }}" {% if muscle == slug %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Filter</button>
+        <a href="{{ url_for('equipment.new_library_exercise') }}" class="btn btn-secondary">Add custom exercise</a>
+    </div>
+</form>
+
+{% if exercises %}
+<table class="table">
+    <thead>
+        <tr>
+            <th>Exercise</th>
+            <th>Equipment</th>
+            <th>Target</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for exercise in exercises %}
+        <tr>
+            <td><a href="{{ url_for('equipment.exercise_detail', exercise_id=exercise.id) }}">{{ exercise.name }}</a></td>
+            <td>{{ exercise.equipment_label or exercise.category or '--' }}</td>
+            <td>{{ exercise.target_muscle or exercise.muscle_group or '--' }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No exercises match. <a href="{{ url_for('equipment.exercise_library') }}">Clear the filters</a>.</p>
+{% endif %}
+{% endblock %}

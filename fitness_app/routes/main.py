@@ -162,6 +162,20 @@ def profile():
     # Days where two sources disagree and the user has not chosen yet.
     conflicts = measurement_service.find_conflicts()
 
+    # Latest reading per non-weight/BMI type (waist, arms, …) for the
+    # measurements panel.
+    other_measurements = []
+    seen_types = set()
+    for measurement in BodyMeasurement.query.order_by(
+        BodyMeasurement.measured_at.desc()
+    ).all():
+        if measurement.measurement_type in ("weight", "bmi"):
+            continue
+        if measurement.measurement_type in seen_types:
+            continue
+        seen_types.add(measurement.measurement_type)
+        other_measurements.append(measurement)
+
     return render_template(
         "profile.html",
         person=person,
@@ -170,6 +184,8 @@ def profile():
         conflicts=conflicts,
         source_labels=SOURCE_LABELS,
         today=datetime.now().strftime("%Y-%m-%d"),
+        measurement_types=MANUAL_MEASUREMENT_TYPES,
+        other_measurements=other_measurements,
     )
 
 
@@ -335,6 +351,101 @@ def log_weight():
     return redirect(url_for("main.profile"))
 
 
+#: Measurement types the manual form offers, with their units. Weight and
+#: BMI keep their dedicated form and conflict handling; everything else is a
+#: plain reading. The model accepts any type string — this list is just the
+#: form's suggestions.
+MANUAL_MEASUREMENT_TYPES = [
+    ("weight", "kg"),
+    ("body_fat", "%"),
+    ("waist", "cm"),
+    ("chest", "cm"),
+    ("arms", "cm"),
+    ("hips", "cm"),
+    ("thigh", "cm"),
+    ("shoulders", "cm"),
+]
+
+
+@main_bp.route("/log-measurement", methods=["POST"])
+def log_measurement():
+    """Log a manual body measurement of any type (waist, arms, …).
+
+    Weight posted here behaves exactly like the weight form (BMI derived,
+    same-day conflicts flagged); every other type stores a plain reading.
+    """
+    person = Person.query.first()
+    if not person:
+        flash("Please set up your profile first.", "warning")
+        return redirect(url_for("main.profile"))
+
+    measurement_type = (request.form.get("measurement_type") or "").strip()
+    raw_value = request.form.get("value")
+    if not measurement_type or raw_value in (None, ""):
+        flash("Measurement type and value are required.", "error")
+        return redirect(url_for("main.profile"))
+
+    try:
+        value = float(raw_value)
+    except (TypeError, ValueError):
+        flash("Invalid measurement value.", "error")
+        return redirect(url_for("main.profile"))
+
+    unit = dict(MANUAL_MEASUREMENT_TYPES).get(measurement_type, "")
+    date_str = request.form.get("measured_date")
+    if date_str:
+        try:
+            measured_at = datetime.strptime(date_str, "%Y-%m-%d")
+        except ValueError:
+            flash("Invalid date.", "error")
+            return redirect(url_for("main.profile"))
+    else:
+        measured_at = datetime.utcnow()
+
+    measurement = BodyMeasurement(
+        person_id=person.id,
+        measured_at=measured_at,
+        measurement_type=measurement_type,
+        value=value,
+        unit=unit,
+        source="manual",
+        source_id=f"manual_{measurement_type}_{measured_at.isoformat()}",
+    )
+    db.session.add(measurement)
+    db.session.flush()
+
+    if measurement_type == "weight":
+        bmi = measurement_service.derive_bmi(value, person.height_cm)
+        if bmi is not None:
+            db.session.add(BodyMeasurement(
+                person_id=person.id,
+                measured_at=measured_at,
+                measurement_type="bmi",
+                value=bmi,
+                unit="",
+                source="manual",
+                source_id=f"manual_bmi_{measured_at.isoformat()}",
+            ))
+    db.session.commit()
+
+    if measurement_type in ("weight", "bmi"):
+        conflicts = measurement_service.find_conflicts(person.id)
+        todays = [c for c in conflicts
+                  if c.day == measured_at.date()
+                  and c.measurement_type == measurement_type]
+        if todays:
+            flash(
+                f"Heads up: another source recorded a different "
+                f"{measurement_type} on {measured_at.strftime('%Y-%m-%d')}. "
+                f"Choose which value to use on the profile page - nothing "
+                f"has been overwritten.",
+                "warning",
+            )
+
+    flash(f"Logged {measurement_type}: {value:g} {unit}".strip(), "success")
+    return redirect(url_for("main.profile"))
+
+
 @main_bp.route("/muscles")
 def muscles():
     """Muscle training map: fatigue and strength per muscle group.
@@ -344,6 +455,45 @@ def muscles():
     it recently; ``neglected`` names what the last 90 days never touched.
     """
     return render_template("muscles.html")
+
+
+#: Standard plates, heaviest first, for the plate calculator.
+PLATE_SIZES = [25.0, 20.0, 15.0, 10.0, 5.0, 2.5, 1.25]
+
+#: Default Olympic bar weight.
+BAR_WEIGHT_KG = 20.0
+
+
+@main_bp.route("/plate-calculator")
+def plate_calculator():
+    """Plate calculator: plates per side for a target bar weight.
+
+    Pure arithmetic page — no database reads, no writes. Greedy from the
+    heaviest plate down, which is how anyone loads a bar in practice.
+    """
+    target = request.args.get("target", type=float)
+    bar = request.args.get("bar", type=float) or BAR_WEIGHT_KG
+
+    result = None
+    if target is not None and target > bar:
+        remaining = round((target - bar) / 2, 2)
+        plates = []
+        for size in PLATE_SIZES:
+            while remaining >= size - 1e-9:
+                plates.append(size)
+                remaining = round(remaining - size, 2)
+        result = {
+            "target": target,
+            "bar": bar,
+            "plates": plates,
+            "loaded": round(bar + sum(plates) * 2, 2),
+            "remainder": round(remaining, 2),
+        }
+
+    return render_template(
+        "plate_calculator.html", result=result, target=target, bar=bar,
+        plates=PLATE_SIZES, default_bar=BAR_WEIGHT_KG,
+    )
 
 
 @main_bp.route("/history")

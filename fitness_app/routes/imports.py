@@ -102,6 +102,12 @@ def import_dashboard():
     upload_dir = wii_fit_upload_dir()
     upload_files = WiiFitImporter(data_dir=upload_dir).find_save_files()
 
+    # Health Connect CSVs and workout CSVs live in their own data folders.
+    from ..importers.health_connect_csv import HealthConnectCsvImporter
+    from ..importers.workout_csv import GymCsvImporter
+    hc_importer = HealthConnectCsvImporter()
+    gym_importer = GymCsvImporter()
+
     return render_template(
         "import_dashboard.html",
         wii_fit_count=wii_fit_count,
@@ -111,6 +117,12 @@ def import_dashboard():
         wii_fit_dir=wii_fit_dir,
         wii_fit_available=importer.is_available(),
         upload_dir=upload_dir,
+        hc_files=hc_importer.find_csv_files(),
+        hc_dir=str(hc_importer.data_dir),
+        hc_count=ImportLog.query.filter_by(source="health_connect_csv").count(),
+        gym_files=gym_importer.find_csv_files(),
+        gym_dir=str(gym_importer.data_dir),
+        gym_count=ImportLog.query.filter_by(source="gym_csv").count(),
     )
 
 
@@ -212,6 +224,67 @@ def upload_health_connect_csv():
 
     try:
         result = import_service.run_import("health_connect_csv")
+    except import_service.ImportUnavailable as unavailable:
+        flash(unavailable.reason, "warning")
+        return redirect(url_for("imports.import_dashboard"))
+
+    _flash_result(result)
+    return redirect(url_for("imports.import_dashboard"))
+
+
+def workout_csv_upload_dir() -> str:
+    """Folder receiving workout CSV files uploaded by hand.
+
+    Always the project's own ``data/workout_csv`` folder, matching the gym
+    CSV importer's default.
+
+    Returns:
+        Absolute path to the upload folder (created if missing).
+    """
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    upload_dir = os.path.join(base_dir, "data", "workout_csv")
+    os.makedirs(upload_dir, exist_ok=True)
+    return upload_dir
+
+
+@imports_bp.route("/gym-csv", methods=["POST"])
+def import_gym_csv():
+    """Import workout CSV files (Strong, Hevy style) from the source folder."""
+    destination = safe_next_url(request.form.get("next"))
+
+    try:
+        result = import_service.run_import("gym_csv")
+    except import_service.ImportUnavailable as unavailable:
+        flash(unavailable.reason, "warning")
+        return redirect(destination)
+
+    _flash_result(result)
+    return redirect(destination)
+
+
+@imports_bp.route("/gym-csv/upload", methods=["POST"])
+def upload_gym_csv():
+    """Upload workout CSV files, then import them straight away."""
+    upload_dir = workout_csv_upload_dir()
+
+    files = request.files.getlist("gym_csv_files")
+    uploaded = 0
+
+    for file in files:
+        if file and file.filename.lower().endswith(".csv"):
+            filename = os.path.basename(file.filename)
+            if filename:
+                file.save(os.path.join(upload_dir, filename))
+                uploaded += 1
+
+    if uploaded == 0:
+        flash("No CSV files uploaded.", "warning")
+        return redirect(url_for("imports.import_dashboard"))
+
+    flash(f"Uploaded {uploaded} CSV file(s).", "success")
+
+    try:
+        result = import_service.run_import("gym_csv")
     except import_service.ImportUnavailable as unavailable:
         flash(unavailable.reason, "warning")
         return redirect(url_for("imports.import_dashboard"))

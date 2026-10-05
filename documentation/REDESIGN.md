@@ -66,7 +66,7 @@ on its own.
   placeholders; logged history moves future targets; deleting a routine
   never touches history. Dashboard today card starts today's routine.
 
-### Phase 4 — Library, stats, measurements
+### Phase 4 — Library, stats, measurements (built, except noted)
 - Searchable exercise library UI (filter by equipment, muscle preview,
   instructions, custom exercises).
 - Stats additions: activity heatmap, weight goal line, 1RM curves, effort trends.

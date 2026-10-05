@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Plate Calculator - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>Plate Calculator</h1>
+<p class="text-muted">Plates per side for a target bar weight, greediest plates first — the way anyone loads a bar. Assumes pairs exist for every size.</p>
+
+<form method="GET" action="{{ url_for('main.plate_calculator') }}" class="form">
+    <div class="form-group">
+        <label for="target">Target weight (kg)</label>
+        <input type="number" id="target" name="target" step="0.5" min="0" value="{{ target if target is not none else '' }}" required>
+    </div>
+    <div class="form-group">
+        <label for="bar">Bar weight (kg)</label>
+        <input type="number" id="bar" name="bar" step="0.5" min="0" value="{{ bar }}">
+    </div>
+    <button type="submit" class="btn btn-primary">Calculate</button>
+</form>
+
+{% if result %}
+<div class="import-panel">
+    <h2>{{ result.loaded }} kg on the bar</h2>
+    {% if result.plates %}
+    <p>Per side: {{ result.plates | join(' + ') }} kg</p>
+    {% else %}
+    <p>Bar only — no plates needed.</p>
+    {% endif %}
+    {% if result.remainder > 0 %}
+    <p class="text-muted">Closest loadable: {{ result.loaded }} kg ({{ result.remainder }} kg short of target — no combination of standard plates covers it).</p>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

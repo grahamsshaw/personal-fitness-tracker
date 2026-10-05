@@ -57,8 +57,15 @@ def weight_data():
     Query args:
         include_superseded: ``true`` to also include readings the user has
             chosen to ignore, so they can be reviewed.
+
+    When a weight goal is set, the payload carries it as ``goal`` so the
+    chart can draw the target line.
     """
-    return jsonify(_series_payload("weight"))
+    payload = _series_payload("weight")
+    person = Person.query.first()
+    if person is not None and person.weight_goal_kg:
+        payload["goal"] = person.weight_goal_kg
+    return jsonify(payload)
 
 
 @charts_bp.route("/bmi")
@@ -246,3 +253,143 @@ def muscle_data():
         "strength": {muscle: values["strength"] for muscle, values in load.items()},
         "neglected": muscle_service.neglected_muscles(person.id),
     })
+
+
+@charts_bp.route("/exercise/<int:exercise_id>/onerm")
+def exercise_onerm(exercise_id):
+    """Best Epley 1RM per session for one exercise, oldest first.
+
+    Computed from logged non-warm-up sets (reps 1-12); sessions with no
+    eligible set are skipped, not zero-filled. Empty until the runner logs
+    real sets — the chart draws nothing rather than a flat line.
+    """
+    from ..models import Exercise, Set, Workout, WorkoutExercise
+    from ..services.training_context import estimate_1rm
+
+    if db.session.get(Exercise, exercise_id) is None:
+        return jsonify({"error": "unknown exercise"}), 404
+
+    best_by_day: dict[str, float] = {}
+    rows = (
+        db.session.query(Set, Workout)
+        .join(WorkoutExercise, Set.workout_exercise_id == WorkoutExercise.id)
+        .join(Workout, WorkoutExercise.workout_id == Workout.id)
+        .filter(WorkoutExercise.exercise_id == exercise_id,
+                Set.is_warmup.isnot(True))
+        .order_by(Workout.started_at)
+        .all()
+    )
+    for row, workout in rows:
+        estimate = estimate_1rm(row.weight_kg_actual, row.reps_actual)
+        if estimate is None:
+            continue
+        day = workout.started_at.date().isoformat()
+        best_by_day[day] = max(estimate, best_by_day.get(day, 0))
+
+    days = sorted(best_by_day)
+    return jsonify({"labels": days, "values": [best_by_day[day] for day in days]})
+
+
+@charts_bp.route("/exercise/<int:exercise_id>/effort")
+def exercise_effort(exercise_id):
+    """Average RIR per week for one exercise, oldest first.
+
+    RPE sets convert at RPE 8 == RIR 2; unrated sets are excluded, never
+    treated as zero effort. Empty until rated sets exist.
+    """
+    from datetime import date as date_cls
+    from ..models import Exercise, Set, Workout, WorkoutExercise
+
+    if db.session.get(Exercise, exercise_id) is None:
+        return jsonify({"error": "unknown exercise"}), 404
+
+    by_week: dict[str, list[float]] = {}
+    rows = (
+        db.session.query(Set, Workout)
+        .join(WorkoutExercise, Set.workout_exercise_id == WorkoutExercise.id)
+        .join(Workout, WorkoutExercise.workout_id == Workout.id)
+        .filter(WorkoutExercise.exercise_id == exercise_id)
+        .order_by(Workout.started_at)
+        .all()
+    )
+    for row, workout in rows:
+        rir = None
+        if row.effort_rir is not None:
+            rir = float(row.effort_rir)
+        elif row.effort_rpe is not None:
+            rir = 10.0 - float(row.effort_rpe)
+        if rir is None:
+            continue
+        monday = workout.started_at.date() - timedelta(
+            days=workout.started_at.weekday())
+        by_week.setdefault(monday.isoformat(), []).append(rir)
+
+    weeks = sorted(by_week)
+    return jsonify({
+        "labels": weeks,
+        "values": [round(sum(values) / len(values), 1) for values in
+                   (by_week[week] for week in weeks)],
+    })
+
+
+@charts_bp.route("/heatmap")
+def activity_heatmap():
+    """Training minutes per day for the last 365 days.
+
+    Workouts and standalone activities both count (linked activities are
+    not double-counted — their session is already represented by the
+    workout). Rendered as a GitHub-style year grid client-side.
+    """
+    from ..models import Activity, Workout
+
+    person = Person.query.first()
+    if person is None:
+        return jsonify({"days": {}})
+
+    start = datetime.now() - timedelta(days=365)
+    minutes: dict[str, int] = {}
+
+    def add(started, ended, duration_seconds) -> int:
+        if duration_seconds:
+            return int(duration_seconds // 60)
+        if started and ended:
+            return max(0, int((ended - started).total_seconds() // 60))
+        return 0
+
+    linked_ids = {
+        workout.activity_id
+        for workout in Workout.query.filter(
+            Workout.person_id == person.id, Workout.started_at >= start).all()
+        if workout.activity_id
+    }
+    for workout in Workout.query.filter(
+        Workout.person_id == person.id, Workout.started_at >= start
+    ).all():
+        day = workout.started_at.date().isoformat()
+        minutes[day] = minutes.get(day, 0) + add(
+            workout.started_at, workout.ended_at, workout.duration_seconds)
+
+    for activity in Activity.query.filter(
+        Activity.person_id == person.id, Activity.started_at >= start
+    ).all():
+        if activity.id in linked_ids:
+            continue
+        day = activity.started_at.date().isoformat()
+        minutes[day] = minutes.get(day, 0) + add(
+            activity.started_at, activity.ended_at, activity.duration_seconds)
+
+    return jsonify({"days": minutes})
+
+
+@charts_bp.route("/measurement/<measurement_type>")
+def measurement_series(measurement_type):
+    """Generic body-measurement series for any type (waist, arms, …).
+
+    Weight and BMI keep their dedicated endpoints; everything else comes
+    through here so new measurement types never need a new route.
+    """
+    allowed = {"weight", "bmi", "body_fat", "waist", "chest", "arms",
+               "hips", "thigh", "shoulders", "height"}
+    if measurement_type not in allowed:
+        return jsonify({"error": f"unknown measurement type {measurement_type!r}"}), 404
+    return jsonify(_series_payload(measurement_type))

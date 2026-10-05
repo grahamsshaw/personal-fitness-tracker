@@ -102,6 +102,91 @@ def delete_equipment(equipment_id):
 
 
 # ===================================================================
+# Exercise library
+# ===================================================================
+
+@equipment_bp.route("/library")
+def exercise_library():
+    """Searchable exercise library.
+
+    Filters narrow by equipment (only combinations with results stay
+    selectable is a later refinement; for now the selects are independent
+    and an empty result suggests clearing a filter).
+    """
+    query = (request.args.get("q") or "").strip()
+    equipment_id = request.args.get("equipment_id", type=int)
+    muscle = (request.args.get("muscle") or "").strip().lower()
+
+    pool = Exercise.query
+    if query:
+        pool = pool.filter(Exercise.name.ilike(f"%{query}%"))
+    if equipment_id:
+        pool = pool.join(
+            EquipmentExercise,
+            EquipmentExercise.exercise_id == Exercise.id,
+        ).filter(EquipmentExercise.equipment_id == equipment_id)
+
+    exercises = pool.order_by(Exercise.name).limit(200).all()
+
+    if muscle:
+        from ..services.muscles import muscles_for_exercise, normalize_muscle
+        canonical = normalize_muscle(muscle)
+        if canonical is None:
+            exercises = []
+        else:
+            exercises = [ex for ex in exercises
+                         if canonical in muscles_for_exercise(ex)]
+
+    equipment = Equipment.query.order_by(Equipment.name).all()
+    return render_template(
+        "exercise_library.html", exercises=exercises, equipment=equipment,
+        query=query, equipment_id=equipment_id, muscle=muscle,
+    )
+
+
+@equipment_bp.route("/library/new", methods=["GET", "POST"])
+def new_library_exercise():
+    """Add a custom exercise. A name and body part is enough; it behaves
+    like built-in ones everywhere (runner, plans, muscle map)."""
+    if request.method == "POST":
+        name = (request.form.get("name") or "").strip()
+        if not name:
+            flash("Name is required.", "error")
+            return redirect(url_for("equipment.new_library_exercise"))
+        if Exercise.query.filter(
+            db.func.lower(Exercise.name) == name.lower()
+        ).first():
+            flash("An exercise with that name already exists.", "warning")
+            return redirect(url_for("equipment.exercise_library"))
+
+        db.session.add(Exercise(
+            name=name,
+            category=request.form.get("category") or "strength",
+            muscle_group=request.form.get("muscle_group"),
+            target_muscle=request.form.get("target_muscle"),
+            source="manual",
+        ))
+        db.session.commit()
+        flash(f"Exercise '{name}' added.", "success")
+        return redirect(url_for("equipment.exercise_library"))
+
+    return render_template("exercise_form.html")
+
+
+@equipment_bp.route("/library/<int:exercise_id>")
+def exercise_detail(exercise_id):
+    """Exercise detail: instructions, muscles with map, history charts."""
+    from ..services.muscles import muscles_for_exercise
+
+    exercise = Exercise.query.get_or_404(exercise_id)
+    return render_template(
+        "exercise_detail.html",
+        exercise=exercise,
+        map_muscles={muscle: 4 for muscle in muscles_for_exercise(exercise)},
+    )
+
+
+# ===================================================================
 # Equipment profiles
 # ===================================================================
 

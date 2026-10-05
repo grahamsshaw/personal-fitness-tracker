@@ -80,8 +80,65 @@
 
 <div class="import-section">
     <h2>Health Connect</h2>
-    <p>Import data from Samsung Health via Android Health Connect (coming in Phase 4).</p>
-    <button class="btn btn-secondary" disabled>Coming Soon</button>
+    <p>Activity, sleep and heart-rate data exported from Health Connect on your phone.</p>
+
+    {% if hc_files %}
+    <div class="alert alert-success">
+        Found {{ hc_files|length }} CSV file(s) in <code>{{ hc_dir }}</code>: {{ hc_files|join(", ") }}
+    </div>
+    <form method="POST" action="{{ url_for('imports.import_health_connect_csv') }}">
+        <button type="submit" class="btn btn-primary">Import Health Connect CSVs</button>
+    </form>
+    {% else %}
+    <div class="alert alert-warning">
+        No CSV files found. Export from the Health Data Export app (or your
+        own companion app) and upload below.
+    </div>
+    {% endif %}
+
+    <h3>Upload CSV files</h3>
+    <form method="POST" action="{{ url_for('imports.upload_health_connect_csv') }}" enctype="multipart/form-data" class="form">
+        <div class="form-group">
+            <label for="health_connect_files">Activity.csv, Sleep.csv, Vitals.csv</label>
+            <input type="file" id="health_connect_files" name="health_connect_files" multiple accept=".csv">
+        </div>
+        <button type="submit" class="btn btn-primary">Upload &amp; Import</button>
+    </form>
+
+    {% if hc_count > 0 %}
+    <p class="text-muted">{{ hc_count }} Health Connect records already imported.</p>
+    {% endif %}
+</div>
+
+<div class="import-section">
+    <h2>Workout CSV (Strong, Hevy)</h2>
+    <p>One-row-per-set workout exports from gym logger apps. Exercises match the library; unknown ones become custom exercises so nothing is dropped.</p>
+
+    {% if gym_files %}
+    <div class="alert alert-success">
+        Found {{ gym_files|length }} CSV file(s) in <code>{{ gym_dir }}</code>: {{ gym_files|join(", ") }}
+    </div>
+    <form method="POST" action="{{ url_for('imports.import_gym_csv') }}">
+        <button type="submit" class="btn btn-primary">Import Workout CSVs</button>
+    </form>
+    {% else %}
+    <div class="alert alert-warning">
+        No CSV files found in <code>{{ gym_dir }}</code>. Export from your app and upload below.
+    </div>
+    {% endif %}
+
+    <h3>Upload CSV files</h3>
+    <form method="POST" action="{{ url_for('imports.upload_gym_csv') }}" enctype="multipart/form-data" class="form">
+        <div class="form-group">
+            <label for="gym_csv_files">Workout CSV files</label>
+            <input type="file" id="gym_csv_files" name="gym_csv_files" multiple accept=".csv">
+        </div>
+        <button type="submit" class="btn btn-primary">Upload &amp; Import</button>
+    </form>
+
+    {% if gym_count > 0 %}
+    <p class="text-muted">{{ gym_count }} workout CSV records already imported.</p>
+    {% endif %}
 </div>
 
 {% if recent_imports %}

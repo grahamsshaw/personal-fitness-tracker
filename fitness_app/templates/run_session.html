@@ -4,7 +4,7 @@
 
 {% block content %}
 <h1>{{ workout.workout_name }}</h1>
-<p class="text-muted">Started {{ workout.started_at.strftime('%H:%M') }} — log sets as you go.</p>
+<p class="text-muted">Started {{ workout.started_at.strftime('%H:%M') }} — log sets as you go. <a href="{{ url_for('main.plate_calculator') }}" target="_blank">Plate calculator</a></p>
 
 <!--
   Guided session
