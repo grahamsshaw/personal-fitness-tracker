@@ -192,6 +192,9 @@ def _migrate_exercises(connection) -> bool:
         connection, "exercises", "instructions", "TEXT"
     )
     changed |= _ensure_column(
+        connection, "exercises", "image_filename", "VARCHAR(100)"
+    )
+    changed |= _ensure_column(
         connection, "exercises", "source", "VARCHAR(50)"
     )
     return changed

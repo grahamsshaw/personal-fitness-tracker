@@ -41,6 +41,13 @@
     exercises.slice(0, 30).forEach((e) => {
       const row = document.createElement("div");
       row.className = "browse-result";
+      if (e.image_filename) {
+        const img = document.createElement("img");
+        img.src = "/static/exercise-images/" + e.image_filename;
+        img.alt = "";
+        img.loading = "lazy";
+        row.appendChild(img);
+      }
       const label = document.createElement("span");
       label.textContent = e.name + (e.equipment_label ? ` (${e.equipment_label})` : "");
       const btn = document.createElement("button");

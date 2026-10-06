@@ -556,6 +556,27 @@ label.chip input {
 label.chip {
     position: relative;
 }
+
+/* Exercise demonstration image on detail pages */
+.exercise-image {
+    text-align: center;
+    margin-bottom: 1rem;
+}
+.exercise-image img {
+    max-width: 200px;
+    max-height: 200px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Thumbnail in picker results */
+.browse-result img {
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: 4px;
+    margin-right: 0.5rem;
+}
 .browse-result {
     display: flex;
     justify-content: space-between;

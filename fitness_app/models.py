@@ -117,6 +117,7 @@ class Exercise(db.Model):
     target_muscle = db.Column(db.String(100))
     secondary_muscles = db.Column(db.Text)  # JSON list
     instructions = db.Column(db.Text)  # JSON list of step strings
+    image_filename = db.Column(db.String(100))  # demonstration image in static/exercise-images/
     source = db.Column(db.String(50), default="manual")
     is_cardio = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

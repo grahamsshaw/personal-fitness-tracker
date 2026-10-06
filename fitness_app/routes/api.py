@@ -77,6 +77,7 @@ def list_exercises():
         "body_part": entry["exercise"].body_part,
         "equipment_label": entry["exercise"].equipment_label,
         "target_muscle": entry["exercise"].target_muscle,
+        "image_filename": entry["exercise"].image_filename,
         "muscle_count": len(entry["muscles"]),
     } for entry in entries])
 

@@ -5,6 +5,12 @@
 {% block content %}
 <h1>{{ exercise.name }}</h1>
 
+{% if exercise.image_filename %}
+<div class="exercise-image">
+    <img src="{{ url_for('static', filename='exercise-images/' + exercise.image_filename) }}" alt="{{ exercise.name }}">
+</div>
+{% endif %}
+
 <div class="detail-card">
     <dl class="detail-list">
         <dt>Equipment</dt>
