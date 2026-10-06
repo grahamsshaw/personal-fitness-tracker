@@ -33,6 +33,9 @@ Resources_Archive/
 Thumbs.db
 .vscode/
 .idea/
+~*.tmp
+~WRL*.tmp
+*.tmp
 
 # Android (companion app)
 companion-app/.gradle/
