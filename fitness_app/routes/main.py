@@ -626,13 +626,19 @@ def history():
 def workout_detail(workout_id):
     """View a single workout."""
     from ..services import sessions as session_service
+    from ..services.muscles import muscles_for_workout_exercise
 
     workout = Workout.query.get_or_404(workout_id)
+    highlight: dict[str, int] = {}
+    for workout_exercise in workout.exercises:
+        for muscle in muscles_for_workout_exercise(workout_exercise):
+            highlight[muscle] = max(highlight.get(muscle, 0), 3)
     return render_template(
         "workout_detail.html",
         workout=workout,
         linked_activities=session_service.linked_activities(workout),
         link_candidates=session_service.link_candidates(workout),
+        map_muscles=highlight,
     )
 
 

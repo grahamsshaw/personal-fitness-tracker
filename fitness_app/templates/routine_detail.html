@@ -57,19 +57,12 @@
 {% endif %}
 
 <h2>Add exercise</h2>
-<form method="POST" action="{{ url_for('plan.add_slot', routine_id=routine.id) }}" class="form">
+{% include '_exercise_picker.html' %}
+<form method="POST" action="{{ url_for('plan.add_slot', routine_id=routine.id) }}" class="form" id="slot-form">
+    <input type="hidden" id="slot-exercise-id" name="exercise_id" value="">
     <div class="form-group">
-        <label for="exercise_id">From the library</label>
-        <select id="exercise_id" name="exercise_id">
-            <option value="">-- Pick --</option>
-            {% for exercise in exercises %}
-            <option value="{{ exercise.id }}">{{ exercise.name }}</option>
-            {% endfor %}
-        </select>
-    </div>
-    <div class="form-group">
-        <label for="exercise_name">Or type a name</label>
-        <input type="text" id="exercise_name" name="exercise_name" placeholder="Used when nothing is picked above">
+        <label for="exercise_name">Exercise (from the browser above, or type a name)</label>
+        <input type="text" id="exercise_name" name="exercise_name" readonly placeholder="Pick above first">
     </div>
     <div class="form-group">
         <label for="target_sets">Sets</label>
@@ -153,4 +146,20 @@
 <form method="POST" action="{{ url_for('plan.delete_routine', routine_id=routine.id) }}" onsubmit="return confirm('Delete this routine? Logged workouts are kept.');">
     <button type="submit" class="btn btn-danger">Delete routine</button>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/muscles.js') }}"></script>
+<script src="{{ url_for('static', filename='js/picker.js') }}"></script>
+<script>
+// Picker wiring: fills the slot form's hidden id + readonly name.
+window.pickerOnPick = (exercise) => {
+  document.getElementById("slot-exercise-id").value = exercise.id;
+  document.getElementById("exercise_name").value = exercise.name;
+};
+window.pickerOnCustom = (name) => {
+  document.getElementById("slot-exercise-id").value = "";
+  document.getElementById("exercise_name").value = name;
+};
+</script>
 {% endblock %}

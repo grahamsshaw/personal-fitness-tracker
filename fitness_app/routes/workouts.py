@@ -3,7 +3,7 @@
 import json
 from datetime import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash
-from ..models import db, Workout, WorkoutExercise, Set, Exercise, Equipment, EquipmentExercise, Person
+from ..models import db, Workout, WorkoutExercise, Set, Exercise, Equipment, EquipmentExercise, EquipmentProfile, Person
 
 workouts_bp = Blueprint("workouts", __name__)
 
@@ -117,13 +117,19 @@ def new_workout():
 def view_workout(workout_id):
     """View a single workout."""
     from ..services import sessions as session_service
+    from ..services.muscles import muscles_for_workout_exercise
 
     workout = Workout.query.get_or_404(workout_id)
+    highlight: dict[str, int] = {}
+    for workout_exercise in workout.exercises:
+        for muscle in muscles_for_workout_exercise(workout_exercise):
+            highlight[muscle] = max(highlight.get(muscle, 0), 3)
     return render_template(
         "workout_detail.html",
         workout=workout,
         linked_activities=session_service.linked_activities(workout),
         link_candidates=session_service.link_candidates(workout),
+        map_muscles=highlight,
     )
 
 
@@ -411,9 +417,49 @@ def run_session(workout_id):
         for we in workout.exercises
     }
     plans = {we.id: _intensifier_plan(we) for we in workout.exercises}
+    programs = {we.id: _program_options(we) for we in workout.exercises}
     return render_template(
-        "run_session.html", workout=workout, performed=performed, plans=plans
+        "run_session.html", workout=workout, performed=performed,
+        plans=plans, programs=programs,
     )
+
+
+def _program_options(we) -> dict | None:
+    """Program modes for a cardio exercise's machine, if known.
+
+    Args:
+        we: The session exercise.
+
+    Returns:
+        Dict with modes + already-chosen values, or None when the machine
+        has no profiled programs (free cardio still logs duration/distance).
+    """
+    import json as json_module
+
+    profile = None
+    if we.equipment_id:
+        profile = EquipmentProfile.query.filter_by(
+            equipment_id=we.equipment_id).first()
+    if profile is None and we.machine:
+        equipment = Equipment.query.filter(
+            db.func.lower(Equipment.name) == we.machine.strip().lower()).first()
+        if equipment is not None:
+            profile = EquipmentProfile.query.filter_by(
+                equipment_id=equipment.id).first()
+    if profile is None or not profile.program_modes:
+        return None
+    try:
+        modes = json_module.loads(profile.program_modes) or []
+    except (ValueError, TypeError):
+        return None
+    if not modes:
+        return None
+    try:
+        params = json_module.loads(we.program_params or "{}")
+    except (ValueError, TypeError):
+        params = {}
+    return {"modes": modes, "selected": we.program_mode,
+            "params": params if isinstance(params, dict) else {}}
 
 
 def _intensifier_plan(we) -> dict | None:
@@ -507,6 +553,26 @@ def run_add_set(workout_id):
         extras = json.dumps({"clusters": bursts})
         reps = total
         set_type = "restpause"
+
+    # Cardio program (mode + parameters as JSON). Stored on the exercise,
+    # not the set: the program describes the whole cardio effort, and
+    # re-logging a set must not wipe a program chosen on an earlier one.
+    program_mode = (request.form.get("program_mode") or "").strip() or None
+    if program_mode:
+        program_params = {
+            key: number(request.form.get(field))
+            for key, field in (
+                ("intensity", "program_intensity"),
+                ("speed", "program_speed"),
+                ("rpm", "program_rpm"),
+                ("time_seconds", "program_time"),
+                ("incline", "program_incline"),
+            )
+        }
+        program_params = {key: value for key, value in program_params.items()
+                          if value is not None}
+        we.program_mode = program_mode
+        we.program_params = json.dumps(program_params) if program_params else None
 
     new_set = Set(
         workout_exercise_id=we.id,

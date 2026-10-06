@@ -12,24 +12,26 @@ api_bp = Blueprint("api", __name__)
 def list_exercises():
     """List exercises, optionally filtered for the picker.
 
-    Query args (all optional, combined with AND):
+    Query args (all optional, combined with AND; repeat `equipment` and
+    `muscle` for OR within that facet):
         q: case-insensitive name substring.
         body_part: exact dataset body part (e.g. ``upper legs``).
         equipment: exact dataset equipment label (e.g. ``dumbbell``).
-        muscle: free-text muscle, normalised to canonical first
-            (``quads`` matches quadriceps work). ``full_body`` is special:
-            exercises involving 3+ distinct muscles.
+        muscle: free-text muscle (normalised first) or ``full_body``
+            (3+ distinct muscles). Matches ANY of the given muscles.
 
-    Each entry carries ``muscle_count`` (target + secondary distinct
-    canonical muscles) so clients can offer the full-body tab without a
-    second request.
+    Each entry carries ``muscle_count`` so clients can offer the full-body
+    tab without a second request.
     """
-    from ..services.muscles import muscles_for_exercise
+    from ..services.muscles import muscles_for_exercise, normalize_muscle
 
     query_text = (request.args.get("q") or "").strip()
     body_part = (request.args.get("body_part") or "").strip().lower()
-    equipment = (request.args.get("equipment") or "").strip().lower()
-    muscle = (request.args.get("muscle") or "").strip()
+    equipment = [value.strip().lower()
+                 for value in request.args.getlist("equipment")
+                 if value.strip()]
+    muscles = [value.strip() for value in request.args.getlist("muscle")
+               if value.strip()]
 
     pool = Exercise.query
     if query_text:
@@ -37,27 +39,34 @@ def list_exercises():
     if body_part:
         pool = pool.filter(db.func.lower(Exercise.body_part) == body_part)
     if equipment:
-        pool = pool.filter(db.func.lower(Exercise.equipment_label) == equipment)
+        pool = pool.filter(
+            db.func.lower(Exercise.equipment_label).in_(equipment))
     exercises = pool.order_by(Exercise.name).limit(500).all()
 
     entries = []
     for exercise in exercises:
-        muscles = muscles_for_exercise(exercise)
         entries.append({
             "exercise": exercise,
-            "muscles": muscles,
+            "muscles": muscles_for_exercise(exercise),
         })
 
-    if muscle:
-        from ..services.muscles import normalize_muscle
-        if muscle.lower() == "full_body":
-            entries = [entry for entry in entries
-                       if len(entry["muscles"]) >= 3]
+    if muscles:
+        wanted = {normalize_muscle(muscle) for muscle in muscles}
+        wanted.discard(None)
+        full_body = any(muscle.lower() == "full_body" for muscle in muscles)
+        if not wanted and not full_body:
+            # Every muscle filter was unrecognised: match nothing rather
+            # than silently ignoring the filter and showing everything.
+            entries = []
         else:
-            canonical = normalize_muscle(muscle)
-            entries = ([entry for entry in entries
-                        if canonical in entry["muscles"]]
-                       if canonical else [])
+            kept = []
+            for entry in entries:
+                if full_body and len(entry["muscles"]) < 3:
+                    continue
+                if wanted and not (set(entry["muscles"]) & wanted):
+                    continue
+                kept.append(entry)
+            entries = kept
 
     return jsonify([{
         "id": entry["exercise"].id,
@@ -462,3 +471,47 @@ def training_context():
     return jsonify(training_context_service.snapshot(
         person[0] if person else None
     ))
+
+
+@api_bp.route("/machines")
+def list_machines():
+    """The user's cardio equipment first, then everything else.
+
+    Each entry carries its program modes (from the equipment profile) so
+    pickers can offer them and the runner can attach them to cardio sets.
+    Cardio machines lead because they are used most; the rest follow by
+    name. This is the equipment the profiles were researched for finally
+    being surfaced where sessions are logged.
+    """
+    import json as json_module
+
+    from ..models import EquipmentProfile
+
+    machines = Equipment.query.order_by(Equipment.name).all()
+    entries = []
+    for machine in machines:
+        profile = EquipmentProfile.query.filter_by(
+            equipment_id=machine.id).first()
+        modes = []
+        muscles = []
+        if profile is not None:
+            try:
+                modes = json_module.loads(profile.program_modes or "[]") or []
+            except (ValueError, TypeError):
+                modes = []
+            try:
+                muscles = json_module.loads(profile.muscles_used or "[]") or []
+            except (ValueError, TypeError):
+                muscles = []
+        entries.append({
+            "id": machine.id,
+            "name": machine.name,
+            "category": machine.category,
+            "is_cardio": (machine.category or "").lower() == "cardio"
+            or bool(modes),
+            "program_modes": modes,
+            "muscles_used": muscles,
+        })
+
+    entries.sort(key=lambda entry: (not entry["is_cardio"], entry["name"]))
+    return jsonify(entries)

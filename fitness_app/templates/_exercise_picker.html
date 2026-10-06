@@ -1,0 +1,39 @@
+<!--
+  Shared exercise picker panel.
+
+  Host page requirements:
+  - include this file where the picker should appear,
+  - load muscles.js before picker.js,
+  - define window.pickerOnPick(exercise) — {id, name} from the library —
+    and window.pickerOnCustom(name) for typed names.
+
+  Filter state: search text AND body part AND any-of equipment chips AND
+  any-of muscles. Muscles multi-select via map taps; Full body is one more
+  toggle. Everything combines server-side through repeated query params.
+-->
+<div class="import-panel" id="exercise-browser">
+    <h3>Browse exercises</h3>
+    <div class="form-group">
+        <label for="browse-q">Search</label>
+        <input type="text" id="browse-q" placeholder="e.g. press, row, squat" autocomplete="off">
+    </div>
+    <div class="form-group">
+        <label>Body part</label>
+        <div class="chip-row" id="browse-parts"></div>
+    </div>
+    <div class="form-group">
+        <label>Equipment (tap several)</label>
+        <div class="chip-row" id="browse-equip"></div>
+    </div>
+    <div class="form-group">
+        <label>Or tap muscles (several)</label>
+        <div id="browse-map" class="browse-map"></div>
+        <p class="text-muted" id="browse-muscle-label"></p>
+    </div>
+    <div id="browse-results"></div>
+    <div class="form-group">
+        <label for="custom-name">Not listed? Type a name</label>
+        <input type="text" id="custom-name" placeholder="e.g. Cable fly">
+        <button type="button" class="btn btn-secondary" id="custom-add">Add custom</button>
+    </div>
+</div>

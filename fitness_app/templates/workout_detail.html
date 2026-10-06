@@ -33,12 +33,18 @@
 </div>
 
 <h2>Exercises</h2>
+{% if map_muscles %}
+<div id="workout-map"></div>
+{% endif %}
 {% if workout.exercises %}
 {% for we in workout.exercises %}
 <div class="exercise-card">
     <h3>{{ we.exercise_name }}</h3>
     {% if we.equipment_name %}
     <p class="text-muted">{{ we.equipment_name }}</p>
+    {% endif %}
+    {% if we.program_mode %}
+    <p class="text-muted">Program: {{ we.program_mode }}</p>
     {% endif %}
     
     {% if we.sets %}
@@ -127,4 +133,16 @@
     </form>
     <a href="{{ url_for('main.history') }}" class="btn btn-secondary">Back to History</a>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% if map_muscles %}
+<script src="{{ url_for('static', filename='js/muscles.js') }}"></script>
+<script>
+BodyMap.render("workout-map", {
+  highlight: {{ map_muscles | tojson }},
+  interactive: false
+});
+</script>
+{% endif %}
 {% endblock %}

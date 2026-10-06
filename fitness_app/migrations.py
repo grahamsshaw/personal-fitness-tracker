@@ -402,6 +402,12 @@ def _migrate_layout_rest(connection) -> bool:
         connection, "workouts", "routine_id", "INTEGER")
     changed |= _ensure_column(
         connection, "equipment_profiles", "base_weight_kg", "FLOAT")
+    changed |= _ensure_column(
+        connection, "workout_exercises", "program_mode", "VARCHAR(100)")
+    changed |= _ensure_column(
+        connection, "workout_exercises", "program_params", "TEXT")
+    changed |= _ensure_column(
+        connection, "routine_exercises", "program_mode", "VARCHAR(100)")
     return changed
 
 

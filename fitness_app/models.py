@@ -307,6 +307,12 @@ class WorkoutExercise(db.Model):
     # RoutineExercise.intensifier). The runner pre-fills drop/burst rows
     # from it; hand edits mid-session just change the stored extras.
     intensifier = db.Column(db.Text)
+    # Cardio program (e.g. "Weight Loss", "HIIT") chosen from the machine's
+    # profile modes, with parameters as JSON (intensity, speed/rpm, time,
+    # incline…). Cardio programs vary too much to log by hand rep-by-rep;
+    # the mode plus parameters IS the record.
+    program_mode = db.Column(db.String(100))
+    program_params = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     __table_args__ = (
@@ -424,6 +430,9 @@ class RoutineExercise(db.Model):
     target_duration_seconds = db.Column(db.Integer)
     target_distance_m = db.Column(db.Float)
     progress_cardio = db.Column(db.Boolean, default=False)
+    # Default cardio program for this slot, chosen from the machine's
+    # profile modes. Offered at session start; changeable per session.
+    program_mode = db.Column(db.String(100))
     exercise_order = db.Column(db.Integer, default=0)
 
     def __repr__(self):

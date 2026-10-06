@@ -252,20 +252,28 @@ def muscles_for_workout_exercise(workout_exercise) -> list[str]:
             return ordered
 
     # Technogym program rows link to program stubs, not library exercises.
-    # Their machine names match Equipment rows whose profiles name muscles.
-    machine = (
-        workout_exercise.machine or workout_exercise.equipment_name or ""
-    ).strip()
-    if machine:
-        equipment = Equipment.query.filter(
-            db.func.lower(Equipment.name) == machine.lower()
-        ).first()
-        profile = equipment.profile if equipment is not None else None
-        if profile is not None and profile.muscles_used:
-            try:
-                add_many(json_module.loads(profile.muscles_used))
-            except (ValueError, TypeError):
-                pass
+    # Their machine resolves two ways: the equipment link when present,
+    # else a name match against the Equipment table. Either way the
+    # machine's profile muscles apply without any name guessing.
+    profile = None
+    if workout_exercise.equipment_id:
+        profile = EquipmentProfile.query.filter_by(
+            equipment_id=workout_exercise.equipment_id).first()
+    if profile is None:
+        machine = (
+            workout_exercise.machine or workout_exercise.equipment_name or ""
+        ).strip()
+        if machine:
+            equipment = Equipment.query.filter(
+                db.func.lower(Equipment.name) == machine.lower()).first()
+            if equipment is not None:
+                profile = EquipmentProfile.query.filter_by(
+                    equipment_id=equipment.id).first()
+    if profile is not None and profile.muscles_used:
+        try:
+            add_many(json_module.loads(profile.muscles_used))
+        except (ValueError, TypeError):
+            pass
 
     return ordered
 

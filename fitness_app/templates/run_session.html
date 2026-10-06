@@ -116,6 +116,42 @@
             <input type="number" name="distance" step="1" inputmode="decimal">
         </div>
         {% endif %}
+        {% set program = programs.get(we.id) %}
+        {% if program %}
+        <div class="form-group">
+            <label>Program mode (from this machine's profile)</label>
+            <select name="program_mode">
+                <option value="">-- Free {{ we.mode or 'cardio' }} --</option>
+                {% for mode in program.modes %}
+                <option value="{{ mode }}" {% if program.selected == mode or we.program_mode == mode %}selected{% endif %}>{{ mode }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Intensity level</label>
+                <input type="number" name="program_intensity" step="1" value="{{ program.params.get('intensity', '') }}" inputmode="numeric">
+            </div>
+            <div class="form-group">
+                <label>Speed</label>
+                <input type="number" name="program_speed" step="0.1" value="{{ program.params.get('speed', '') }}" inputmode="decimal">
+            </div>
+            <div class="form-group">
+                <label>RPM</label>
+                <input type="number" name="program_rpm" step="1" value="{{ program.params.get('rpm', '') }}" inputmode="numeric">
+            </div>
+            <div class="form-group">
+                <label>Time (s)</label>
+                <input type="number" name="program_time" step="1" value="{{ program.params.get('time_seconds', '') }}" inputmode="numeric">
+            </div>
+            <div class="form-group">
+                <label>Incline</label>
+                <input type="number" name="program_incline" step="0.5" value="{{ program.params.get('incline', '') }}" inputmode="decimal">
+            </div>
+        </div>
+        {% elif we.program_mode %}
+        <p class="text-muted">Program: {{ we.program_mode }}</p>
+        {% endif %}
         <div class="form-group">
             <label>Effort (optional)</label>
             <input type="number" name="effort" min="0" max="10" step="1" inputmode="numeric">

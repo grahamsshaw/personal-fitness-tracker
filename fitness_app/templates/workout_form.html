@@ -66,42 +66,7 @@
     
     <h2>Exercises</h2>
 
-    <!--
-      Exercise browser
-      ----------------
-      The old datalist autocomplete never opened on phone browsers, so
-      exercises are browsed instead: search text, body-part tabs, equipment
-      picker, and a tap-on-the-muscle body map. Picking one appends a filled
-      row below; typing a name by hand still works via "Add custom".
-    -->
-    <div class="import-panel" id="exercise-browser">
-        <h3>Browse exercises</h3>
-        <div class="form-group">
-            <label for="browse-q">Search</label>
-            <input type="text" id="browse-q" placeholder="e.g. press, row, squat" autocomplete="off">
-        </div>
-        <div class="form-group">
-            <label>Body part</label>
-            <div class="chip-row" id="browse-parts"></div>
-        </div>
-        <div class="form-group">
-            <label for="browse-equipment">Equipment</label>
-            <select id="browse-equipment">
-                <option value="">Any equipment</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label>Or tap a muscle</label>
-            <div id="browse-map" class="browse-map"></div>
-            <p class="text-muted" id="browse-muscle-label"></p>
-        </div>
-        <div id="browse-results"></div>
-        <div class="form-group">
-            <label for="custom-name">Not listed? Type a name</label>
-            <input type="text" id="custom-name" placeholder="e.g. Cable fly">
-            <button type="button" class="btn btn-secondary" id="custom-add">Add custom</button>
-        </div>
-    </div>
+    {% include '_exercise_picker.html' %}
 
     <div id="exercises-container">
         <!-- Exercise rows added by JavaScript -->
@@ -118,13 +83,14 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/muscles.js') }}"></script>
+<script src="{{ url_for('static', filename='js/picker.js') }}"></script>
 <script>
+// Picker wiring: picked library rows arrive filled, typed names arrive blank.
+window.pickerOnPick = (exercise) => addExercise({ id: exercise.id, name: exercise.name });
+window.pickerOnCustom = (name) => addExercise({ name: name });
+
 const equipment = {{ equipment|tojson }};
 let exerciseCount = 0;
-
-// Currently active browse filters. `muscle` holds a canonical slug or
-// 'full_body'; null means no muscle filter.
-const browseFilters = { q: '', part: '', equipment: '', muscle: null };
 
 function addExercise(preset) {
     const container = document.getElementById('exercises-container');
@@ -203,142 +169,7 @@ equipment.forEach(e => {
 });
 document.body.appendChild(equipmentList);
 
-function browseQuery() {
-    const params = new URLSearchParams();
-    if (browseFilters.q) params.set('q', browseFilters.q);
-    if (browseFilters.part) params.set('body_part', browseFilters.part);
-    if (browseFilters.equipment) params.set('equipment', browseFilters.equipment);
-    if (browseFilters.muscle) params.set('muscle', browseFilters.muscle);
-    return params.toString();
-}
-
-function renderResults(exercises) {
-    const box = document.getElementById('browse-results');
-    box.innerHTML = '';
-    if (!exercises.length) {
-        box.innerHTML = '<p class="text-muted">Nothing matches — loosen a filter or type a name below.</p>';
-        return;
-    }
-    const shown = exercises.slice(0, 30);
-    shown.forEach(e => {
-        const row = document.createElement('div');
-        row.className = 'browse-result';
-        const label = document.createElement('span');
-        label.textContent = e.name + (e.equipment_label ? ` (${e.equipment_label})` : '');
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'btn btn-small btn-primary';
-        btn.textContent = 'Add';
-        btn.addEventListener('click', () => addExercise({ id: e.id, name: e.name }));
-        row.appendChild(label);
-        row.appendChild(btn);
-        box.appendChild(row);
-    });
-    if (exercises.length > shown.length) {
-        const more = document.createElement('p');
-        more.className = 'text-muted';
-        more.textContent = `Showing 30 of ${exercises.length} — narrow the search.`;
-        box.appendChild(more);
-    }
-}
-
-function refreshBrowse() {
-    fetch('/api/exercises?' + browseQuery())
-        .then(r => r.json())
-        .then(renderResults)
-        .catch(() => {
-            document.getElementById('browse-results').innerHTML =
-                '<p class="text-muted">Could not load exercises.</p>';
-        });
-}
-
-function renderPartChips(parts) {
-    const box = document.getElementById('browse-parts');
-    box.innerHTML = '';
-    const make = (value, label, count) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'chip' + (browseFilters.part === value ? ' active' : '');
-        btn.textContent = count != null ? `${label} (${count})` : label;
-        btn.addEventListener('click', () => {
-            browseFilters.part = browseFilters.part === value ? '' : value;
-            renderPartChips(parts);
-            refreshBrowse();
-        });
-        box.appendChild(btn);
-    };
-    make('', 'All', null);
-    parts.forEach(([name, count]) => make(name, name, count));
-}
-
-// Debounced search so each keystroke does not fire a request.
-let searchTimer = null;
-document.getElementById('browse-q').addEventListener('input', (e) => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => {
-        browseFilters.q = e.target.value.trim();
-        refreshBrowse();
-    }, 250);
-});
-document.getElementById('browse-equipment').addEventListener('change', (e) => {
-    browseFilters.equipment = e.target.value;
-    refreshBrowse();
-});
-document.getElementById('custom-add').addEventListener('click', () => {
-    const input = document.getElementById('custom-name');
-    if (!input.value.trim()) return;
-    addExercise({ name: input.value.trim() });
-    input.value = '';
-});
-
-// Facets once, then the map, then the first results.
-fetch('/api/exercise-facets')
-    .then(r => r.json())
-    .then(facets => {
-        renderPartChips(facets.body_parts || []);
-        const select = document.getElementById('browse-equipment');
-        (facets.equipment || []).forEach(([name, count]) => {
-            const opt = document.createElement('option');
-            opt.value = name;
-            opt.textContent = `${name} (${count})`;
-            select.appendChild(opt);
-        });
-        refreshBrowse();
-    })
-    .catch(() => {
-        document.getElementById('browse-results').innerHTML =
-            '<p class="text-muted">Could not load exercises.</p>';
-    });
-
-BodyMap.render('browse-map', {
-    interactive: true,
-    onSelect: (muscle) => {
-        browseFilters.muscle = browseFilters.muscle === muscle ? null : muscle;
-        const label = document.getElementById('browse-muscle-label');
-        const names = window.BodyMap.names;
-        label.textContent = browseFilters.muscle
-            ? `Showing: ${names[browseFilters.muscle] || browseFilters.muscle} — tap again to clear`
-            : '';
-        refreshBrowse();
-    }
-});
-
-// Full-body is a map-level concept (3+ muscles), not a drawable shape.
-(function addFullBodyShortcut() {
-    const label = document.getElementById('browse-muscle-label');
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'btn btn-small btn-secondary';
-    btn.textContent = 'Full body';
-    btn.addEventListener('click', () => {
-        browseFilters.muscle = browseFilters.muscle === 'full_body' ? null : 'full_body';
-        label.textContent = browseFilters.muscle
-            ? 'Showing: full body (3+ muscles)'
-            : '';
-        refreshBrowse();
-    });
-    label.after(btn);
-})();
+// The shared picker (picker.js) fills rows via window.pickerOnPick above.
 
 // Add first exercise row
 addExercise();

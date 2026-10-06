@@ -326,7 +326,19 @@ function loadMeasurementChart(canvasId, endpoint, renderer) {
         })
         .then(data => {
             clearChartError(canvasId);
-            renderer(canvasId, data);
+            if (!data.labels || !data.labels.length) {
+                chartError(canvasId, 'No readings to plot yet.');
+                return;
+            }
+            // A throw inside the renderer would otherwise leave a blank
+            // canvas with no explanation. Surface it instead — the message
+            // names the cause so it can be reported and fixed.
+            try {
+                renderer(canvasId, data);
+            } catch (err) {
+                console.error(`Error drawing ${endpoint}:`, err);
+                chartError(canvasId, `Could not draw chart: ${err.message || err}`);
+            }
         })
         .catch(error => {
             console.error(`Error loading ${endpoint}:`, error);
