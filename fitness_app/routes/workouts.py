@@ -382,24 +382,52 @@ def run_setup():
         return redirect(url_for("workouts.run_session", workout_id=workout.id))
 
     query = (request.args.get("q") or "").strip()
-    equipment_id = request.args.get("equipment_id", type=int)
+    equipment = [value.strip().lower()
+                 for value in request.args.getlist("equipment")
+                 if value.strip()]
+    muscles = [value.strip() for value in request.args.getlist("muscle")
+               if value.strip()]
+
     pool = Exercise.query
     if query:
         pool = pool.filter(Exercise.name.ilike(f"%{query}%"))
-    if equipment_id:
-        pool = pool.join(
-            EquipmentExercise,
-            EquipmentExercise.exercise_id == Exercise.id,
-        ).filter(EquipmentExercise.equipment_id == equipment_id)
+    if equipment:
+        pool = pool.filter(
+            db.func.lower(Exercise.equipment_label).in_(equipment))
     exercises = pool.order_by(Exercise.name).limit(100).all()
-    equipment = Equipment.query.order_by(Equipment.name).all()
+
+    if muscles:
+        from ..services.muscles import muscles_for_exercise, normalize_muscle
+        wanted = {normalize_muscle(m) for m in muscles}
+        wanted.discard(None)
+        full_body = any(m.lower() == "full_body" for m in muscles)
+        if not wanted and not full_body:
+            exercises = []
+        else:
+            kept = []
+            for exercise in exercises:
+                involved = muscles_for_exercise(exercise)
+                if full_body and len(involved) < 3:
+                    continue
+                if wanted and not (set(involved) & wanted):
+                    continue
+                kept.append(exercise)
+            exercises = kept
+
+    labels: dict[str, int] = {}
+    for label, in db.session.query(Exercise.equipment_label).filter(
+        Exercise.equipment_label.isnot(None)
+    ).all():
+        key = label.strip().lower()
+        labels[key] = labels.get(key, 0) + 1
 
     return render_template(
         "run_setup.html",
         exercises=exercises,
-        equipment=equipment,
+        equipment_labels=sorted(labels.items(), key=lambda item: -item[1]),
+        active_equipment=equipment,
+        active_muscles=muscles,
         query=query,
-        equipment_id=equipment_id,
         snapshot=snapshot,
     )
 

@@ -529,6 +529,33 @@ input:focus, select:focus, textarea:focus {
     border-color: var(--primary);
     color: #fff;
 }
+
+/* Chip buttons, exact markup the picker and library share:
+ * <div class="chips"><button class="chip">… / <label class="chip">….
+ * `nocap` disables any capitalisation; `on` marks the active chip. */
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 12px;
+}
+.chip.nocap {
+    text-transform: none;
+}
+.chip.on,
+label.chip:has(input:checked) {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+label.chip input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+label.chip {
+    position: relative;
+}
 .browse-result {
     display: flex;
     justify-content: space-between;

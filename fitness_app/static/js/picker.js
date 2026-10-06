@@ -10,6 +10,13 @@
 (function () {
   "use strict";
 
+  // Muscle slugs offered as chips, matching the library page.
+  const MUSCLE_LIST = [
+    "abs", "obliques", "chest", "upper-back", "shoulders", "biceps",
+    "triceps", "gluteal", "quadriceps", "hamstring", "calves", "trapezius",
+    "lower-back", "forearm", "serratus", "adductors", "hip-flexors", "tibialis",
+  ];
+
   // Active filters. equipment/muscles are SETS (multi-select); part single.
   const filters = { q: "", part: "", equipment: new Set(), muscles: new Set() };
 
@@ -70,7 +77,7 @@
     items.forEach(([value, label, count]) => {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "chip" + (active(value) ? " active" : "");
+      btn.className = "chip" + (active(value) ? " on" : "");
       btn.textContent = count != null ? `${label} (${count})` : label;
       btn.addEventListener("click", () => {
         toggle(value);
@@ -102,7 +109,7 @@
       const on = isAny ? filters.equipment.size === 0 : filters.equipment.has(value);
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "chip" + (on ? " active" : "");
+      btn.className = "chip" + (on ? " on" : "");
       btn.textContent = count != null ? `${label} (${count})` : label;
       btn.addEventListener("click", () => {
         if (isAny) filters.equipment.clear();
@@ -113,6 +120,34 @@
       });
       box.appendChild(btn);
     });
+  }
+
+  function renderMuscles() {
+    const box = document.getElementById("browse-muscles");
+    if (!box) return;
+    box.innerHTML = "";
+    const names = window.BodyMap ? window.BodyMap.names : {};
+    const make = (slug) => {
+      const label = document.createElement("label");
+      label.className = "chip nocap" + (filters.muscles.has(slug) ? " on" : "");
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.value = slug;
+      input.checked = filters.muscles.has(slug);
+      input.addEventListener("change", () => {
+        if (input.checked) filters.muscles.add(slug);
+        else filters.muscles.delete(slug);
+        renderMuscles();
+        renderMap();
+        refresh();
+      });
+      label.appendChild(input);
+      const text = slug === "full_body" ? "full body" : (names[slug] || slug);
+      label.appendChild(document.createTextNode(text));
+      box.appendChild(label);
+    };
+    MUSCLE_LIST.forEach(make);
+    make("full_body");
   }
 
   function muscleLabel() {
@@ -142,6 +177,7 @@
         if (filters.muscles.has(muscle)) filters.muscles.delete(muscle);
         else filters.muscles.add(muscle);
         muscleLabel();
+        renderMuscles();
         renderMap();
         refresh();
       },
@@ -169,7 +205,7 @@
 
   function renderFullState() {
     const btn = document.getElementById("browse-fullbody");
-    if (btn) btn.classList.toggle("active-chip", filters.muscles.has("full_body"));
+    if (btn) btn.classList.toggle("on", filters.muscles.has("full_body"));
   }
 
   function init() {
@@ -203,10 +239,12 @@
       .then((facets) => {
         renderParts(facets.body_parts || []);
         renderEquip(facets.equipment || []);
+        renderMuscles();
         renderMap();
         refresh();
       })
       .catch(() => {
+        renderMuscles();
         renderMap();
         refresh();
       });

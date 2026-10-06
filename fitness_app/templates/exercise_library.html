@@ -5,34 +5,53 @@
 {% block content %}
 <h1>Exercise Library</h1>
 
-<form method="GET" action="{{ url_for('equipment.exercise_library') }}" class="form">
+<form method="GET" action="{{ url_for('equipment.exercise_library') }}" class="form" id="library-filter">
     <div class="form-group">
         <label for="q">Search ({{ exercises|length }} shown, 200 max)</label>
         <input type="text" id="q" name="q" value="{{ query }}" placeholder="e.g. press, row, squat, curl">
     </div>
     <div class="form-group">
-        <label for="equipment_id">Equipment</label>
-        <select id="equipment_id" name="equipment_id">
-            <option value="">-- Everything --</option>
-            {% for item in equipment %}
-            <option value="{{ item.id }}" {% if equipment_id == item.id %}selected{% endif %}>{{ item.name }}</option>
+        <label>Equipment — tap several</label>
+        <div class="chips">
+            {% for label, count in equipment_labels %}
+            <label class="chip nocap{% if label in active_equipment %} on{% endif %}">
+                <input type="checkbox" name="equipment" value="{{ label }}"
+                    {% if label in active_equipment %}checked{% endif %}>
+                {{ label }} ({{ count }})
+            </label>
             {% endfor %}
-        </select>
+        </div>
     </div>
     <div class="form-group">
-        <label for="muscle">Muscle</label>
-        <select id="muscle" name="muscle">
-            <option value="">-- Any --</option>
-            {% for slug, label in [('chest','Chest'),('back','Back'),('upper-back','Upper back'),('shoulders','Shoulders'),('deltoids','Shoulders'),('biceps','Biceps'),('triceps','Triceps'),('abs','Abs'),('obliques','Obliques'),('glutes','Glutes'),('gluteal','Glutes'),('quadriceps','Quads'),('quads','Quads'),('hamstring','Hamstrings'),('hamstrings','Hamstrings'),('calves','Calves'),('trapezius','Traps')] %}
-            <option value="{{ slug }}" {% if muscle == slug %}selected{% endif %}>{{ label }}</option>
+        <label>Muscles — tap several</label>
+        <div class="chips">
+            {% for slug in ['abs','obliques','chest','upper-back','shoulders','biceps','triceps','gluteal','quadriceps','hamstring','calves','trapezius','lower-back','forearm','serratus','adductors','hip-flexors','tibialis'] %}
+            <label class="chip nocap{% if slug in active_muscles %} on{% endif %}">
+                <input type="checkbox" name="muscle" value="{{ slug }}"
+                    {% if slug in active_muscles %}checked{% endif %}>
+                {{ slug }}
+            </label>
             {% endfor %}
-        </select>
+            <label class="chip nocap{% if 'full_body' in active_muscles %} on{% endif %}">
+                <input type="checkbox" name="muscle" value="full_body"
+                    {% if 'full_body' in active_muscles %}checked{% endif %}>
+                full body
+            </label>
+        </div>
     </div>
     <div class="form-actions">
         <button type="submit" class="btn btn-primary">Filter</button>
         <a href="{{ url_for('equipment.new_library_exercise') }}" class="btn btn-secondary">Add custom exercise</a>
     </div>
 </form>
+<script>
+// Tapping a chip re-filters immediately — no submit press needed.
+document.querySelectorAll("#library-filter .chip input").forEach(function (box) {
+    box.addEventListener("change", function () {
+        document.getElementById("library-filter").submit();
+    });
+});
+</script>
 
 {% if exercises %}
 <table class="table">

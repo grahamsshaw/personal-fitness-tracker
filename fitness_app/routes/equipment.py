@@ -109,38 +109,65 @@ def delete_equipment(equipment_id):
 def exercise_library():
     """Searchable exercise library.
 
-    Filters narrow by equipment (only combinations with results stay
-    selectable is a later refinement; for now the selects are independent
-    and an empty result suggests clearing a filter).
+    Equipment filters are chip buttons (multi-select), not a dropdown —
+    with 1,300 rows a select is unusable, especially on a phone. Labels
+    come from the dataset, ordered most-common first.
     """
+    from ..services.muscles import muscles_for_exercise, normalize_muscle
+
     query = (request.args.get("q") or "").strip()
-    equipment_id = request.args.get("equipment_id", type=int)
+    equipment = [value.strip().lower()
+                 for value in request.args.getlist("equipment")
+                 if value.strip()]
+    muscles = [value.strip() for value in request.args.getlist("muscle")
+               if value.strip()]
     muscle = (request.args.get("muscle") or "").strip().lower()
 
     pool = Exercise.query
     if query:
         pool = pool.filter(Exercise.name.ilike(f"%{query}%"))
-    if equipment_id:
-        pool = pool.join(
-            EquipmentExercise,
-            EquipmentExercise.exercise_id == Exercise.id,
-        ).filter(EquipmentExercise.equipment_id == equipment_id)
+    if equipment:
+        pool = pool.filter(
+            db.func.lower(Exercise.equipment_label).in_(equipment))
 
     exercises = pool.order_by(Exercise.name).limit(200).all()
 
-    if muscle:
-        from ..services.muscles import muscles_for_exercise, normalize_muscle
-        canonical = normalize_muscle(muscle)
-        if canonical is None:
+    active_muscles = muscles + ([muscle] if muscle and muscle not in muscles
+                                else [])
+    if active_muscles:
+        wanted = {normalize_muscle(item) for item in active_muscles}
+        wanted.discard(None)
+        full_body = any(item.lower() == "full_body" for item in active_muscles)
+        if not wanted and not full_body:
             exercises = []
         else:
-            exercises = [ex for ex in exercises
-                         if canonical in muscles_for_exercise(ex)]
+            kept = []
+            for exercise in exercises:
+                involved = muscles_for_exercise(exercise)
+                if full_body and len(involved) < 3:
+                    continue
+                if wanted and not (set(involved) & wanted):
+                    continue
+                kept.append(exercise)
+            exercises = kept
 
-    equipment = Equipment.query.order_by(Equipment.name).all()
+    # Equipment labels ordered most-common first, matching the picker's
+    # chip order so both lists read the same.
+    labels: dict[str, int] = {}
+    for label, in db.session.query(Exercise.equipment_label).filter(
+        Exercise.equipment_label.isnot(None)
+    ).all():
+        key = label.strip().lower()
+        labels[key] = labels.get(key, 0) + 1
+    equipment_labels = sorted(labels.items(), key=lambda item: -item[1])
+
     return render_template(
-        "exercise_library.html", exercises=exercises, equipment=equipment,
-        query=query, equipment_id=equipment_id, muscle=muscle,
+        "exercise_library.html", exercises=exercises,
+        equipment_labels=equipment_labels,
+        active_equipment=equipment,
+        active_muscles=muscles + ([muscle] if muscle and muscle not in muscles
+                                  else []),
+        query=query,
     )
 
 
