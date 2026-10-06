@@ -96,7 +96,46 @@
             <option value="cardio">Cardio</option>
         </select>
     </div>
+    <div class="form-group">
+        <label for="target_duration_seconds">Cardio target (seconds; cardio mode)</label>
+        <input type="number" id="target_duration_seconds" name="target_duration_seconds" placeholder="600">
+    </div>
+    <div class="form-group">
+        <label><input type="checkbox" name="progress_cardio" value="1"> Progress cardio +5% when feeling good (off by default)</label>
+    </div>
+    <div class="form-group">
+        <label for="rest_seconds">Rest between sets (seconds; blank = default timer)</label>
+        <input type="number" id="rest_seconds" name="rest_seconds" placeholder="90">
+    </div>
+    <div class="form-group">
+        <label for="warmup_sets">Warm-up sets (auto-close half the gap each)</label>
+        <input type="number" id="warmup_sets" name="warmup_sets" value="0" min="0">
+    </div>
+    <div class="form-group">
+        <label for="intensifier_type">Intensifier</label>
+        <select id="intensifier_type" name="intensifier_type">
+            <option value="none">None</option>
+            <option value="dropset">Drop-set (every set + drops, % lighter)</option>
+            <option value="restpause">Rest-pause (one warm-up + one work set of bursts)</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label>Drops / burst details</label>
+        <input type="number" name="drop_count" placeholder="drops: 1" style="width: 7rem">
+        <input type="number" name="drop_pct" placeholder="drop %: 20" step="1" style="width: 7rem">
+        <input type="number" name="restpause_reps" placeholder="burst total: 12" style="width: 8rem">
+        <input type="number" name="restpause_rest" placeholder="burst rest: 15s" style="width: 8rem">
+    </div>
     <button type="submit" class="btn btn-primary">Add exercise</button>
+</form>
+
+<h2>Deload</h2>
+<p class="text-muted">Deloaded routines run normally and show in history and statistics — their sessions just never move a target.</p>
+<form method="POST" action="{{ url_for('plan.toggle_deload', routine_id=routine.id) }}">
+    <button type="submit" class="btn btn-secondary">
+        {{ 'Turn deload off' if routine.exclude_from_progression else 'Turn deload on' }}
+    </button>
+    {% if routine.exclude_from_progression %}<span class="text-muted">Currently deloaded.</span>{% endif %}
 </form>
 
 <h2>Schedule</h2>

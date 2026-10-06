@@ -107,12 +107,27 @@ def dashboard():
             if weekday in days:
                 todays_routines.append(routine)
 
+    # Week calendar (cyclable): per-day routines, overrides and sessions.
+    week_offset = request.args.get("week_offset", 0, type=int)
+    week_start_shifted = week_start + timedelta(weeks=week_offset)
+    week_label = "This week" if week_offset == 0 else week_start_shifted.strftime("w/c %d %b")
+    week_days = _week_days(person, week_start_shifted) if person else []
+
+    # Last three weights for the home weight block.
+    recent_weights = BodyMeasurement.query.filter_by(
+        measurement_type="weight"
+    ).order_by(BodyMeasurement.measured_at.desc()).limit(3).all()
+
+    # Streak: consecutive weeks (back from this week) with a session.
+    streak_weeks = _training_streak_weeks(person) if person else 0
+
     return render_template(
         "dashboard.html",
         person=person,
         recent_workouts=recent_workouts,
         recent_activities=recent_activities,
         latest_weight=latest_weight,
+        recent_weights=recent_weights,
         last_gym=last_gym,
         total_workouts=total_workouts,
         total_exercises=total_exercises,
@@ -122,7 +137,101 @@ def dashboard():
         neglected=neglected,
         week_breakdown=week_breakdown,
         todays_routines=todays_routines,
+        week_offset=week_offset,
+        week_label=week_label,
+        week_days=week_days,
+        streak_weeks=streak_weeks,
     )
+
+
+def _week_days(person, week_start):
+    """Build one week of calendar cells: routines, overrides, sessions.
+
+    Args:
+        person: Whose calendar this is.
+        week_start: Monday date of the week to render.
+
+    Returns:
+        List of dicts with iso/label/is_today/routines/override/session names.
+    """
+    import json as json_module
+    from ..models import CalendarOverride, Routine
+
+    today = datetime.now().date()
+    cells = []
+    for offset in range(7):
+        day = week_start + timedelta(days=offset)
+        override = CalendarOverride.query.filter_by(
+            person_id=person.id, day=day.isoformat()).first()
+        routines = []
+        override_routine = None
+        override_rest = False
+        if override is not None:
+            if override.is_rest:
+                override_rest = True
+            elif override.routine_id:
+                override_routine = db.session.get(Routine, override.routine_id)
+        else:
+            for routine in Routine.query.filter_by(person_id=person.id).all():
+                try:
+                    days = json_module.loads(routine.days or "[]")
+                except (ValueError, TypeError):
+                    days = []
+                if day.weekday() in days:
+                    routines.append(routine)
+        sessions = [
+            workout.workout_name or "Workout"
+            for workout in Workout.query.filter(
+                Workout.person_id == person.id,
+                Workout.started_at >= datetime.combine(day, datetime.min.time()),
+                Workout.started_at < datetime.combine(
+                    day + timedelta(days=1), datetime.min.time()),
+            ).all()
+        ]
+        cells.append({
+            "iso": day.isoformat(),
+            "label": day.strftime("%a %d %b") + (" (today)" if day == today else ""),
+            "is_today": day == today,
+            "routines": routines,
+            "override_routine": override_routine,
+            "override_rest": override_rest,
+            "sessions": sessions,
+        })
+    return cells
+
+
+def _training_streak_weeks(person) -> int:
+    """Consecutive weeks with at least one session, counting back.
+
+    This week counts when it already holds a session, otherwise the streak
+    is measured back from last week — starting a week does not break it,
+    only an empty one does.
+
+    Args:
+        person: Whose streak to measure.
+
+    Returns:
+        Number of consecutive active weeks.
+    """
+    today = datetime.now().date()
+    monday = today - timedelta(days=today.weekday())
+
+    def active(week_monday) -> bool:
+        return Workout.query.filter(
+            Workout.person_id == person.id,
+            Workout.started_at >= datetime.combine(week_monday, datetime.min.time()),
+            Workout.started_at < datetime.combine(
+                week_monday + timedelta(days=7), datetime.min.time()),
+        ).first() is not None
+
+    streak = 0
+    cursor = monday
+    if not active(cursor):
+        cursor -= timedelta(weeks=1)
+    while active(cursor):
+        streak += 1
+        cursor -= timedelta(weeks=1)
+    return streak
 
 
 @main_bp.route("/profile", methods=["GET", "POST"])
@@ -581,4 +690,78 @@ def activities():
         total_duration=round(total_duration / 60),
         total_calories=round(total_calories),
         walking_summary=walking_summary,
+    )
+
+
+@main_bp.route("/measurements/<int:measurement_id>/delete", methods=["POST"])
+def delete_measurement(measurement_id):
+    """Delete a single body measurement (the bin icon).
+
+    Only manual readings can be deleted — imported data is re-imported
+    from its source, so deleting it here would silently resurrect on the
+    next import and lie about what happened.
+    """
+    measurement = BodyMeasurement.query.get_or_404(measurement_id)
+    if measurement.source != "manual":
+        flash("Only manual readings can be deleted here — imported data "
+              "comes back on the next import.", "warning")
+        return redirect(url_for("main.profile"))
+    db.session.delete(measurement)
+    db.session.commit()
+    flash("Reading deleted.", "success")
+    return redirect(url_for("main.profile"))
+
+
+@main_bp.route("/activities/<int:activity_id>")
+def activity_detail(activity_id):
+    """Activity detail, embed-friendly for calendar overlays."""
+    activity = Activity.query.get_or_404(activity_id)
+    return render_template("activity_detail.html", activity=activity)
+
+
+@main_bp.route("/calendar/<day>", methods=["GET", "POST"])
+def calendar_day(day):
+    """View and edit one calendar day: plan a routine or mark rest.
+
+    Overrides the weekday schedule for a single date without touching any
+    routine. Clearing back to the weekday default deletes the override.
+    """
+    from ..models import CalendarOverride, Routine
+
+    try:
+        datetime.strptime(day, "%Y-%m-%d")
+    except ValueError:
+        flash("Invalid date.", "error")
+        return redirect(url_for("main.dashboard"))
+
+    person = Person.query.first()
+    if person is None:
+        flash("Set up your profile first.", "warning")
+        return redirect(url_for("main.profile"))
+
+    if request.method == "POST":
+        routine_id = request.form.get("routine_id", type=int)
+        is_rest = bool(request.form.get("is_rest"))
+        override = CalendarOverride.query.filter_by(
+            person_id=person.id, day=day).first()
+        if routine_id is None and not is_rest:
+            if override is not None:
+                db.session.delete(override)
+                db.session.commit()
+            flash("Back to the weekday schedule for that day.", "success")
+        else:
+            if override is None:
+                override = CalendarOverride(person_id=person.id, day=day)
+                db.session.add(override)
+            override.routine_id = routine_id
+            override.is_rest = is_rest
+            db.session.commit()
+            flash("Day updated.", "success")
+        return redirect(url_for("main.dashboard"))
+
+    routines = Routine.query.order_by(Routine.name).all()
+    override = CalendarOverride.query.filter_by(
+        person_id=person.id, day=day).first()
+    return render_template(
+        "calendar_day.html", day=day, routines=routines, override=override,
     )

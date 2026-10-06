@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Activity - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>{{ activity.activity_type|capitalize }}</h1>
+
+<div class="detail-card">
+    <dl class="detail-list">
+        <dt>When</dt>
+        <dd>{{ activity.started_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+
+        {% if activity.ended_at %}
+        <dt>Until</dt>
+        <dd>{{ activity.ended_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+        {% endif %}
+
+        {% if activity.duration_seconds %}
+        <dt>Duration</dt>
+        <dd>{{ (activity.duration_seconds / 60)|int }} minutes</dd>
+        {% endif %}
+
+        {% if activity.distance_m %}
+        <dt>Distance</dt>
+        <dd>{{ "%.0f"|format(activity.distance_m) }} m</dd>
+        {% endif %}
+
+        {% if activity.steps %}
+        <dt>Steps</dt>
+        <dd>{{ activity.steps }}</dd>
+        {% endif %}
+
+        {% if activity.calories %}
+        <dt>Calories</dt>
+        <dd>{{ "%.0f"|format(activity.calories) }}</dd>
+        {% endif %}
+
+        {% if activity.avg_heart_rate %}
+        <dt>Avg heart rate</dt>
+        <dd>{{ activity.avg_heart_rate }} bpm</dd>
+        {% endif %}
+
+        <dt>Source</dt>
+        <dd>{{ activity.source }}</dd>
+
+        {% if activity.notes %}
+        <dt>Notes</dt>
+        <dd>{{ activity.notes }}</dd>
+        {% endif %}
+    </dl>
+</div>
+{% endblock %}

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 
 #: Policy names a routine may use.
-POLICIES = ("linear", "double_progression", "greyskull")
+POLICIES = ("none", "linear", "double_progression", "greyskull")
 
 #: Sessions missed in a row before Greyskull deloads.
 STALL_LIMIT = 2
@@ -264,6 +264,7 @@ def greyskull(
 
 #: Policy name -> function.
 POLICY_FUNCTIONS = {
+    "none": None,  # handled directly in next_target: targets never move
     "linear": linear,
     "double_progression": double_progression,
     "greyskull": greyskull,
@@ -281,9 +282,9 @@ def next_target(
     """Compute the next session's targets under a policy.
 
     Args:
-        policy: One of ``linear``, ``double_progression``, ``greyskull``.
-            Unknown names fall back to linear rather than failing — a
-            mistyped policy must not block training.
+        policy: One of ``none``, ``linear``, ``double_progression``,
+            ``greyskull``. Unknown names fall back to linear rather than
+            failing — a mistyped policy must not block training.
         history: Recent sessions (weight, reps list, target_reps), newest last.
         increment_kg: Step on success.
         default_weight: Starting weight with no history.
@@ -293,7 +294,50 @@ def next_target(
     Returns:
         Dict with weight, reps, rationale and deload flag.
     """
+    if policy == "none":
+        weight = _last_weight(history, default_weight)
+        target = (history[-1].get("target_reps") if history else None) or 5
+        return {
+            "weight": _round_weight(weight),
+            "reps": target,
+            "deload": False,
+            "rationale": "no automatic progression — targets stay put",
+        }
     function = POLICY_FUNCTIONS.get(policy, linear)
+    if function is None:  # defensive: the table maps none -> None
+        function = linear
     if function is double_progression:
         return function(history, increment_kg, default_weight, rep_min, rep_max)
     return function(history, increment_kg, default_weight)
+
+
+def next_cardio_target(
+    durations: list[int],
+    enabled: bool,
+    default_seconds: int = 600,
+) -> dict:
+    """Compute the next cardio duration target.
+
+    Cardio progression is deliberately modest and off by default: when
+    enabled, the target grows 5% over the last logged duration. The future
+    assistant may *offer* to enable it, but nothing here turns it on.
+
+    Args:
+        durations: Recent logged durations in seconds, newest last.
+        enabled: The routine slot's progress flag.
+        default_seconds: Starting target with no history.
+
+    Returns:
+        Dict with duration_seconds and rationale.
+    """
+    if not enabled or not durations:
+        return {
+            "duration_seconds": durations[-1] if durations else default_seconds,
+            "rationale": "cardio holds steady (progression off)"
+            if not enabled else "first cardio session — start here",
+        }
+    grown = int(durations[-1] * 1.05)
+    return {
+        "duration_seconds": grown,
+        "rationale": f"+5% over last time ({durations[-1]}s → {grown}s)",
+    }

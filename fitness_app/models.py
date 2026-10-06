@@ -194,6 +194,10 @@ class EquipmentProfile(db.Model):
     # Additional details (JSON object)
     details = db.Column(db.Text)
 
+    # Base weight in kg: the machine or sled itself before any plate goes
+    # on (0 when it is all plates). Feeds the plate line in the runner.
+    base_weight_kg = db.Column(db.Float)
+
     # Source: 'manufacturer_manual', 'technogym_website', 'manual_entry'
     source = db.Column(db.String(100))
 
@@ -242,6 +246,9 @@ class Workout(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     person_id = db.Column(db.Integer, db.ForeignKey("person.id"), nullable=False)
     activity_id = db.Column(db.Integer, db.ForeignKey("activities.id"))
+    # Routine this session started from, if any. Used to honour deload
+    # routines (excluded from progression) when reading history back.
+    routine_id = db.Column(db.Integer, db.ForeignKey("routines.id"))
     workout_name = db.Column(db.String(200))
     started_at = db.Column(db.DateTime, nullable=False)
     ended_at = db.Column(db.DateTime)
@@ -296,6 +303,10 @@ class WorkoutExercise(db.Model):
     # performance when no target exists.
     target_weight_kg = db.Column(db.Float)
     target_reps = db.Column(db.Integer)
+    # Intensifier plan copied from the routine slot (JSON, same shape as
+    # RoutineExercise.intensifier). The runner pre-fills drop/burst rows
+    # from it; hand edits mid-session just change the stored extras.
+    intensifier = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     __table_args__ = (
@@ -333,6 +344,11 @@ class Set(db.Model):
     # row itself so history readers can ignore the flag and stay correct.
     set_type = db.Column(db.String(20), default="straight")
     is_warmup = db.Column(db.Boolean, default=False)
+    # Shape details as JSON. Drop-sets store extra work ON TOP of the row:
+    # {"drops": [{"weight_kg": 80, "reps": 5}]}. Rest-pause rows store the
+    # decomposition of their own reps (never extra volume):
+    # {"clusters": [{"reps": 6, "rest_sec": 15}]}. Straight rows leave it empty.
+    extras = db.Column(db.Text)
     compliance_target = db.Column(db.Float)
     compliance_actual = db.Column(db.Float)
     source = db.Column(db.String(50), default="manual")
@@ -361,9 +377,12 @@ class Routine(db.Model):
     name = db.Column(db.String(200), nullable=False)
     # Weekdays this routine runs, JSON list with 0=Monday. Empty = unscheduled.
     days = db.Column(db.Text, default="[]")
-    # Progression policy: 'linear', 'double_progression' or 'greyskull'.
-    # See services/progression.py for what each rule does.
+    # Progression policy: 'linear', 'double_progression', 'greyskull' or
+    # 'none' (targets stay where set). See services/progression.py.
     progression_policy = db.Column(db.String(50), default="linear")
+    # Deload routine: runs normally and shows in history/stats, but its
+    # sessions never move progression targets.
+    exclude_from_progression = db.Column(db.Boolean, default=False)
     # Weight increment in kg applied when the policy says advance.
     increment_kg = db.Column(db.Float, default=2.5)
     notes = db.Column(db.Text)
@@ -394,10 +413,45 @@ class RoutineExercise(db.Model):
     rep_max = db.Column(db.Integer)  # double progression range top
     target_weight_kg = db.Column(db.Float)
     mode = db.Column(db.String(20), default="reps")
+    # Per-exercise session config (simplified v1 of the full config sheet):
+    # rest between sets, warm-up set count, intensifier plan as JSON
+    # ({"type": "dropset", "count": 1, "pct": 20} or {"type": "restpause",
+    # "total_reps": 12, "rest_sec": 15}), cardio targets, and whether
+    # cardio duration progresses (+5% when enabled, off by default).
+    rest_seconds = db.Column(db.Integer)
+    warmup_sets = db.Column(db.Integer, default=0)
+    intensifier = db.Column(db.Text)
+    target_duration_seconds = db.Column(db.Integer)
+    target_distance_m = db.Column(db.Float)
+    progress_cardio = db.Column(db.Boolean, default=False)
     exercise_order = db.Column(db.Integer, default=0)
 
     def __repr__(self):
         return f"<RoutineExercise {self.exercise_name}>"
+
+
+class CalendarOverride(db.Model):
+    """Per-date plan override: a routine, or explicit rest.
+
+    The weekly routine schedule repeats; this table records the exceptions
+    a user taps onto specific dates (and future planned sessions). One row
+    per person per date — setting rest deletes the row's routine, clearing
+    back to the weekday default deletes the row.
+    """
+    __tablename__ = "calendar_overrides"
+
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.Integer, db.ForeignKey("person.id"), nullable=False)
+    day = db.Column(db.String(10), nullable=False)  # ISO date YYYY-MM-DD
+    routine_id = db.Column(db.Integer, db.ForeignKey("routines.id"))
+    is_rest = db.Column(db.Boolean, default=False)
+
+    __table_args__ = (
+        db.UniqueConstraint("person_id", "day"),
+    )
+
+    def __repr__(self):
+        return f"<CalendarOverride {self.day}>"
 
 
 class ExercisePreference(db.Model):

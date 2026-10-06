@@ -36,6 +36,7 @@ Thumbs.db
 ~*.tmp
 ~WRL*.tmp
 *.tmp
+~$*.docx
 
 # Android (companion app)
 companion-app/.gradle/

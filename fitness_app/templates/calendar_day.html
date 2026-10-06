@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}{{ day }} - Fitness Tracker{% endblock %}
+
+{% block content %}
+<h1>{{ day }}</h1>
+<p class="text-muted">Plan a routine or mark rest for this date. Clearing back to the weekday default removes the override.</p>
+
+<form method="POST" class="form">
+    <div class="form-group">
+        <label for="routine_id">Routine</label>
+        <select id="routine_id" name="routine_id">
+            <option value="">-- Weekday default --</option>
+            {% for routine in routines %}
+            <option value="{{ routine.id }}" {% if override and override.routine_id == routine.id %}selected{% endif %}>{{ routine.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-group">
+        <label><input type="checkbox" name="is_rest" value="1" {% if override and override.is_rest %}checked{% endif %}> Rest day</label>
+    </div>
+    <button type="submit" class="btn btn-primary">Save</button>
+</form>
+{% endblock %}

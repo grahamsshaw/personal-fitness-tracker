@@ -42,6 +42,9 @@ def _routine_days(routine: Routine) -> list[int]:
 def _exercise_history(exercise_id: int | None, limit: int = 6) -> list[dict]:
     """Recent session summaries for progression input.
 
+    Sessions from deload routines are skipped: a deload workout counts in
+    history and statistics, but must never move a target.
+
     Args:
         exercise_id: Library exercise id. None when unlinked.
         limit: How many past sessions to include.
@@ -57,9 +60,12 @@ def _exercise_history(exercise_id: int | None, limit: int = 6) -> list[dict]:
     sets = (
         Set.query.join(WorkoutExercise)
         .join(Workout, WorkoutExercise.workout_id == Workout.id)
+        .outerjoin(Routine, Workout.routine_id == Routine.id)
         .filter(WorkoutExercise.exercise_id == exercise_id,
                 Set.is_warmup.isnot(True),
-                Set.reps_actual.isnot(None))
+                Set.reps_actual.isnot(None),
+                db.or_(Routine.id.is_(None),
+                       Routine.exclude_from_progression.isnot(True)))
         .order_by(Workout.started_at.desc(), Set.set_number)
         .limit(limit * 10)
         .all()
@@ -158,6 +164,22 @@ def add_slot(routine_id):
     exercise = db.session.get(Exercise, exercise_id) if exercise_id else None
 
     order = max([slot.exercise_order for slot in routine.exercises] + [-1]) + 1
+
+    intensifier = None
+    intensifier_type = request.form.get("intensifier_type", "none")
+    if intensifier_type == "dropset":
+        intensifier = json.dumps({
+            "type": "dropset",
+            "count": request.form.get("drop_count", type=int) or 1,
+            "pct": request.form.get("drop_pct", type=float) or 20.0,
+        })
+    elif intensifier_type == "restpause":
+        intensifier = json.dumps({
+            "type": "restpause",
+            "total_reps": request.form.get("restpause_reps", type=int) or 12,
+            "rest_sec": request.form.get("restpause_rest", type=int) or 15,
+        })
+
     db.session.add(RoutineExercise(
         routine_id=routine.id,
         exercise_id=exercise.id if exercise else None,
@@ -168,6 +190,13 @@ def add_slot(routine_id):
         rep_min=request.form.get("rep_min", type=int),
         rep_max=request.form.get("rep_max", type=int),
         target_weight_kg=request.form.get("target_weight_kg", type=float),
+        target_duration_seconds=request.form.get(
+            "target_duration_seconds", type=int),
+        target_distance_m=request.form.get("target_distance_m", type=float),
+        progress_cardio=bool(request.form.get("progress_cardio")),
+        rest_seconds=request.form.get("rest_seconds", type=int),
+        warmup_sets=request.form.get("warmup_sets", type=int) or 0,
+        intensifier=intensifier,
         mode=request.form.get("mode", "reps")
         if request.form.get("mode") in ("reps", "time", "cardio") else "reps",
         exercise_order=order,
@@ -214,6 +243,26 @@ def delete_routine(routine_id):
     return redirect(url_for("plan.week"))
 
 
+@plan_bp.route("/routines/<int:routine_id>/deload", methods=["POST"])
+def toggle_deload(routine_id):
+    """Toggle whether a routine counts toward progression.
+
+    A deload routine runs normally and shows in history and statistics —
+    its sessions just never move a target. Useful for rehab, return from
+    illness, or easy weeks.
+    """
+    routine = Routine.query.get_or_404(routine_id)
+    routine.exclude_from_progression = not routine.exclude_from_progression
+    db.session.commit()
+    flash(
+        "Deload on: this routine no longer moves targets."
+        if routine.exclude_from_progression else
+        "Deload off: this routine moves targets again.",
+        "success",
+    )
+    return redirect(url_for("plan.view_routine", routine_id=routine.id))
+
+
 @plan_bp.route("/routines/<int:routine_id>/start", methods=["POST"])
 def start_routine(routine_id):
     """Start a guided session from a routine, with computed targets.
@@ -237,6 +286,7 @@ def start_routine(routine_id):
         workout_name=routine.name,
         started_at=datetime.now(),
         source="manual",
+        routine_id=routine.id,
         notes=f"From routine '{routine.name}' ({routine.progression_policy}).",
     )
     db.session.add(workout)
@@ -251,7 +301,7 @@ def start_routine(routine_id):
             rep_min=slot.rep_min or 8,
             rep_max=slot.rep_max or 12,
         )
-        db.session.add(WorkoutExercise(
+        workout_exercise = WorkoutExercise(
             workout_id=workout.id,
             exercise_id=slot.exercise_id,
             equipment_id=slot.equipment_id,
@@ -260,13 +310,95 @@ def start_routine(routine_id):
             exercise_order=slot.exercise_order,
             target_weight_kg=target["weight"],
             target_reps=target["reps"],
+            intensifier=slot.intensifier,
             source="manual",
-        ))
+        )
+        # Cardio slots carry duration targets instead of weight. Progression
+        # is opt-in per slot and modest (+5%); otherwise the target holds.
+        if (slot.mode or "reps") in ("time", "cardio"):
+            durations = _cardio_history(slot.exercise_id)
+            cardio = progression_service.next_cardio_target(
+                durations, bool(slot.progress_cardio),
+                default_seconds=slot.target_duration_seconds or 600,
+            )
+            workout_exercise.target_reps = None
+            workout_exercise.target_weight_kg = None
+            db.session.add(workout_exercise)
+            db.session.flush()
+            _add_warmup_sets(workout_exercise, slot, cardio["duration_seconds"])
+        else:
+            db.session.add(workout_exercise)
+            db.session.flush()
+            _add_warmup_sets(workout_exercise, slot, target["weight"])
 
     db.session.commit()
     flash(f"Session started from '{routine.name}'. Targets are computed — "
           f"log what you actually do.", "success")
     return redirect(url_for("workouts.run_session", workout_id=workout.id))
+
+
+def _cardio_history(exercise_id: int | None, limit: int = 6) -> list[int]:
+    """Recent logged durations for a cardio exercise, newest last.
+
+    Args:
+        exercise_id: Library exercise id. None when unlinked.
+        limit: How many sessions to include.
+
+    Returns:
+        Durations in seconds.
+    """
+    if not exercise_id:
+        return []
+    rows = (
+        Set.query.join(WorkoutExercise)
+        .filter(WorkoutExercise.exercise_id == exercise_id,
+                Set.duration_seconds.isnot(None))
+        .order_by(Set.id.desc())
+        .limit(limit)
+        .all()
+    )
+    return [row.duration_seconds for row in reversed(rows)
+            if row.duration_seconds]
+
+
+def _add_warmup_sets(
+    workout_exercise: WorkoutExercise, slot, work_value: float | None
+) -> None:
+    """Pre-log warm-up sets closing half the gap to the work target.
+
+    Each warm-up closes half the remaining gap (40 → 20 → 30 → 35 toward
+    40), capped by the slot's warm-up count. Warm-ups never touch volume,
+    records or progression — the flags say so on every row.
+
+    Args:
+        workout_exercise: The session exercise to attach sets to.
+        slot: The routine slot (carries the warm-up count).
+        work_value: Work weight (kg) or duration (s), depending on mode.
+    """
+    count = slot.warmup_sets or 0
+    if count <= 0 or not work_value:
+        return
+    gap = float(work_value)
+    for number in range(1, count + 1):
+        gap = gap / 2
+        value = round(float(work_value) - gap, 1)
+        if (slot.mode or "reps") in ("time", "cardio"):
+            db.session.add(Set(
+                workout_exercise_id=workout_exercise.id,
+                set_number=number,
+                duration_seconds=int(value),
+                is_warmup=True,
+                source="manual",
+            ))
+        else:
+            db.session.add(Set(
+                workout_exercise_id=workout_exercise.id,
+                set_number=number,
+                reps_actual=slot.target_reps or 5,
+                weight_kg_actual=value,
+                is_warmup=True,
+                source="manual",
+            ))
 
 
 @plan_bp.route("/export")

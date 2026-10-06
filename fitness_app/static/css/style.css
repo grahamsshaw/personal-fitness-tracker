@@ -544,6 +544,57 @@ input:focus, select:focus, textarea:focus {
     height: 220px;
 }
 
+/* Drop/burst sub-rows under a set: smaller, indented, same family. */
+tr.subrow td {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    padding-top: 0.2rem;
+    padding-bottom: 0.2rem;
+}
+tr.subrow td:first-child {
+    padding-left: 1.5rem;
+}
+
+/*
+  Print: one routine per page, chrome-free.
+  ----------------------------------------
+  window.print() from the routine page yields a clean one-page-per-plan
+  printout — no exercise ever splits across a page. Screen layout untouched.
+*/
+@media print {
+    .navbar,
+    .bottom-nav,
+    .footer,
+    .theme-toggle,
+    .menu-drawer,
+    .form-actions,
+    form,
+    button {
+        display: none !important;
+    }
+    .container {
+        max-width: none;
+        padding: 0;
+    }
+    .import-panel,
+    .detail-card {
+        border: none;
+        box-shadow: none;
+        break-inside: avoid;
+        page-break-inside: avoid;
+        margin: 0 0 1rem;
+        padding: 0;
+    }
+    h1, h2 {
+        break-after: avoid;
+        page-break-after: avoid;
+    }
+    table {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+}
+
 /*
   Themes and responsive layout (Phase 1 redesign)
   ----------------------------------------------

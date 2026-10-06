@@ -1,5 +1,6 @@
 """Workout routes: create, view, manage workouts."""
 
+import json
 from datetime import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from ..models import db, Workout, WorkoutExercise, Set, Exercise, Equipment, EquipmentExercise, Person
@@ -168,6 +169,74 @@ def delete_workout(workout_id):
     return redirect(url_for("main.history"))
 
 
+@workouts_bp.route("/<int:workout_id>/save-as-routine", methods=["POST"])
+def save_as_routine(workout_id):
+    """Save a logged workout's exercises as a new routine.
+
+    Slot targets seed from each exercise's best logged set (weight and
+    reps); cardio slots seed from duration. The routine starts unscheduled
+    so it can be placed deliberately, and progression starts at linear.
+    History is untouched — this reads the workout, never moves it.
+    """
+    from ..models import Routine, RoutineExercise
+
+    workout = Workout.query.get_or_404(workout_id)
+    person = Person.query.first()
+    if person is None:
+        flash("Set up your profile first.", "warning")
+        return redirect(url_for("main.profile"))
+
+    base_name = workout.workout_name or "Workout"
+    name = base_name
+    taken = {routine.name for routine in Routine.query.all()}
+    suffix = 2
+    while name in taken:
+        name = f"{base_name} ({suffix})"
+        suffix += 1
+
+    routine = Routine(
+        person_id=person.id, name=name, days="[]",
+        progression_policy="linear", increment_kg=2.5,
+        notes=f"Saved from session on {workout.started_at.date().isoformat()}.",
+    )
+    db.session.add(routine)
+    db.session.flush()
+
+    for order, workout_exercise in enumerate(
+        sorted(workout.exercises, key=lambda we: we.exercise_order)
+    ):
+        best_weight = None
+        best_reps = None
+        best_duration = None
+        for logged_set in workout_exercise.sets:
+            if logged_set.is_warmup:
+                continue
+            if (logged_set.weight_kg_actual is not None and
+                    (best_weight is None or logged_set.weight_kg_actual > best_weight)):
+                best_weight = logged_set.weight_kg_actual
+                best_reps = logged_set.reps_actual
+            if logged_set.duration_seconds and (
+                    best_duration is None or logged_set.duration_seconds > best_duration):
+                best_duration = logged_set.duration_seconds
+        db.session.add(RoutineExercise(
+            routine_id=routine.id,
+            exercise_id=workout_exercise.exercise_id,
+            equipment_id=workout_exercise.equipment_id,
+            exercise_name=workout_exercise.exercise_name or "Exercise",
+            target_sets=max(1, len([s for s in workout_exercise.sets
+                                    if not s.is_warmup]) or 3),
+            target_reps=best_reps,
+            target_weight_kg=best_weight,
+            target_duration_seconds=best_duration,
+            mode=workout_exercise.mode or "reps",
+            exercise_order=order,
+        ))
+
+    db.session.commit()
+    flash(f"Saved as routine '{name}' — place it on the plan.", "success")
+    return redirect(url_for("plan.view_routine", routine_id=routine.id))
+
+
 @workouts_bp.route("/<int:workout_id>/link-technogym", methods=["POST"])
 def link_technogym(workout_id):
     """Attach overlapping Technogym records to a hand-logged session.
@@ -216,12 +285,22 @@ def _last_performance(exercise_id: int | None) -> dict:
         return {"weight": None, "reps": None, "duration": None,
                 "distance": None, "best_1rm": None}
 
+    # Newest non-warm-up set first: pre-logged warm-ups (from routine
+    # warm-up generation) must never masquerade as last performance.
     last = (
         Set.query.join(WorkoutExercise)
-        .filter(WorkoutExercise.exercise_id == exercise_id)
+        .filter(WorkoutExercise.exercise_id == exercise_id,
+                Set.is_warmup.isnot(True))
         .order_by(Set.id.desc())
         .first()
     )
+    if last is None:
+        last = (
+            Set.query.join(WorkoutExercise)
+            .filter(WorkoutExercise.exercise_id == exercise_id)
+            .order_by(Set.id.desc())
+            .first()
+        )
     best = None
     for row in (
         Set.query.join(WorkoutExercise)
@@ -331,9 +410,46 @@ def run_session(workout_id):
         we.exercise_id: _last_performance(we.exercise_id)
         for we in workout.exercises
     }
+    plans = {we.id: _intensifier_plan(we) for we in workout.exercises}
     return render_template(
-        "run_session.html", workout=workout, performed=performed
+        "run_session.html", workout=workout, performed=performed, plans=plans
     )
+
+
+def _intensifier_plan(we) -> dict | None:
+    """Parse an exercise's intensifier plan with suggested weights.
+
+    Args:
+        we: The session exercise.
+
+    Returns:
+        Dict with type/count/pct (drops) or total_reps/rest_sec (bursts)
+        plus suggested drop weights chained off the target or last weight.
+        None when no intensifier is planned.
+    """
+    if not we.intensifier:
+        return None
+    try:
+        plan = json.loads(we.intensifier)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(plan, dict) or plan.get("type") not in ("dropset", "restpause"):
+        return None
+
+    if plan["type"] == "dropset":
+        base = we.target_weight_kg
+        if base is None:
+            last = _last_performance(we.exercise_id)
+            base = last.get("weight")
+        plan = dict(plan)
+        plan["suggested_drops"] = []
+        if base:
+            weight = float(base)
+            pct = float(plan.get("pct") or 20.0)
+            for _ in range(int(plan.get("count") or 1)):
+                weight = round(weight * (1 - pct / 100) * 2) / 2
+                plan["suggested_drops"].append(weight)
+    return plan
 
 
 @workouts_bp.route("/run/<int:workout_id>/sets", methods=["POST"])
@@ -355,19 +471,55 @@ def run_add_set(workout_id):
 
     effort_scale = request.form.get("effort_scale", "rir")
     effort_value = number(request.form.get("effort"), int)
+
+    # Drop/burst sub-rows ride inside the set as JSON extras. Drops are
+    # extra work on top of the main set; burst reps sum to the row's own
+    # total (plus any main reps typed, which seed the running total).
+    drops = []
+    index = 0
+    while True:
+        drop_weight = number(request.form.get(f"drop_weight_{index}"))
+        drop_reps = number(request.form.get(f"drop_reps_{index}"), int)
+        if drop_weight is None and drop_reps is None:
+            break
+        drops.append({"weight_kg": drop_weight, "reps": drop_reps})
+        index += 1
+    bursts = []
+    index = 0
+    while True:
+        burst_reps = number(request.form.get(f"burst_reps_{index}"), int)
+        if burst_reps is None:
+            break
+        bursts.append({"reps": burst_reps, "rest_sec": 15})
+        index += 1
+
+    reps = number(request.form.get("reps"), int)
+    set_type = request.form.get("set_type", "straight")
+    if set_type not in ("straight", "dropset", "restpause"):
+        set_type = "straight"
+    if drops:
+        set_type = "dropset"
+    extras = None
+    if drops:
+        extras = json.dumps({"drops": drops})
+    elif bursts:
+        total = (reps or 0) + sum(burst["reps"] for burst in bursts)
+        extras = json.dumps({"clusters": bursts})
+        reps = total
+        set_type = "restpause"
+
     new_set = Set(
         workout_exercise_id=we.id,
         set_number=len(we.sets) + 1,
-        reps_actual=number(request.form.get("reps"), int),
+        reps_actual=reps,
         weight_kg_actual=number(request.form.get("weight")),
         duration_seconds=number(request.form.get("duration"), int),
         distance_m=number(request.form.get("distance")),
         effort_rir=effort_value if effort_scale == "rir" else None,
         effort_rpe=float(effort_value) if effort_scale == "rpe"
         and effort_value is not None else None,
-        set_type=request.form.get("set_type", "straight")
-        if request.form.get("set_type") in ("straight", "dropset", "restpause")
-        else "straight",
+        set_type=set_type,
+        extras=extras,
         is_warmup=bool(request.form.get("is_warmup")),
         source="manual",
     )

@@ -60,6 +60,31 @@
                 </td>
                 <td></td>
             </tr>
+            {% set extras = s.extras | fromjson %}
+            {% if extras and extras.drops %}
+                {% for drop in extras.drops %}
+                <tr class="subrow">
+                    <td>↳ drop</td>
+                    <td>{% if drop.weight_kg %}{{ drop.weight_kg }} kg{% else %}--{% endif %}</td>
+                    <td>{{ drop.reps or '--' }}</td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                </tr>
+                {% endfor %}
+            {% endif %}
+            {% if extras and extras.clusters %}
+                {% for burst in extras.clusters %}
+                <tr class="subrow">
+                    <td>↳ burst</td>
+                    <td></td>
+                    <td>{{ burst.reps or '--' }}</td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                </tr>
+                {% endfor %}
+            {% endif %}
             {% endfor %}
         </tbody>
     </table>
@@ -102,6 +127,30 @@
         <div class="form-group">
             <label><input type="checkbox" name="is_warmup" value="1"> Warm-up set</label>
             <label><input type="checkbox" name="set_type" value="dropset"> Drop-set</label>
+        </div>
+        {% set plan = plans.get(we.id) %}
+        {% if plan and plan.type == 'dropset' %}
+        <div class="form-group" id="drops-{{ we.id }}">
+            <label>Planned drops ({{ plan.count }} × {{ plan.pct }}% lighter, no rest)</label>
+            {% for suggested in plan.suggested_drops %}
+            <div class="form-row">
+                <input type="number" name="drop_weight_{{ loop.index0 }}" step="0.5" value="{{ suggested }}" placeholder="kg" style="width: 6rem">
+                <input type="number" name="drop_reps_{{ loop.index0 }}" placeholder="reps" style="width: 6rem">
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% if plan and plan.type == 'restpause' %}
+        <div class="form-group" id="bursts-{{ we.id }}">
+            <label>Rest-pause bursts ({{ plan.rest_sec }}s rest, total {{ plan.total_reps }} reps)</label>
+            <div class="form-row burst-row">
+                <input type="number" name="burst_reps_0" placeholder="burst reps" style="width: 8rem">
+            </div>
+        </div>
+        {% endif %}
+        <div class="form-group">
+            <button type="button" class="btn btn-small" data-add-drop="{{ we.id }}">+ Drop</button>
+            <button type="button" class="btn btn-small" data-add-burst="{{ we.id }}">+ Burst</button>
         </div>
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">Log set</button>
@@ -201,6 +250,39 @@
     if (timer) clearInterval(timer);
     timer = null;
     display.textContent = "--:--";
+  });
+
+  /* + Drop / + Burst: append sub-rows to the set form, continuing the
+   * planned indices so the server reads one sequence. */
+  function nextIndex(form, prefix) {
+    let i = 0;
+    while (form.querySelector(`[name="${prefix}${i}"]`)) i++;
+    return i;
+  }
+
+  document.querySelectorAll("[data-add-drop]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const form = btn.closest("form");
+      const i = nextIndex(form, "drop_weight_");
+      const row = document.createElement("div");
+      row.className = "form-row";
+      row.innerHTML =
+        `<input type="number" name="drop_weight_${i}" step="0.5" placeholder="kg" style="width: 6rem">` +
+        `<input type="number" name="drop_reps_${i}" placeholder="reps" style="width: 6rem">`;
+      btn.parentElement.before(row);
+    });
+  });
+
+  document.querySelectorAll("[data-add-burst]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const form = btn.closest("form");
+      const i = nextIndex(form, "burst_reps_");
+      const row = document.createElement("div");
+      row.className = "form-row";
+      row.innerHTML =
+        `<input type="number" name="burst_reps_${i}" placeholder="burst reps" style="width: 8rem">`;
+      btn.parentElement.before(row);
+    });
   });
 })();
 </script>

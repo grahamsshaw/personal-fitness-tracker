@@ -342,6 +342,69 @@ def _migrate_routines(connection) -> bool:
     return changed
 
 
+def _migrate_layout_rest(connection) -> bool:
+    """Layout follow-ups: set extras, routine flags, slot config, overrides.
+
+    - ``sets.extras``: drop/burst details as JSON.
+    - ``routines.exclude_from_progression``: deload toggle.
+    - ``routine_exercises``: rest, warm-ups, intensifier, cardio targets,
+      cardio progression flag.
+    - ``workout_exercises``: copied intensifier.
+    - ``workouts.routine_id``: which routine a session started from.
+    - ``equipment_profiles.base_weight_kg``: machine weight before plates.
+    - ``calendar_overrides``: per-date routine/rest exceptions.
+
+    Args:
+        connection: An open SQLAlchemy connection.
+
+    Returns:
+        True if anything changed.
+    """
+    changed = False
+    inspector = inspect(connection)
+
+    if "calendar_overrides" not in inspector.get_table_names():
+        connection.execute(text(
+            "CREATE TABLE calendar_overrides ("
+            "id INTEGER NOT NULL PRIMARY KEY, "
+            "person_id INTEGER NOT NULL, "
+            "day VARCHAR(10) NOT NULL, "
+            "routine_id INTEGER, "
+            "is_rest INTEGER DEFAULT 0, "
+            "FOREIGN KEY (person_id) REFERENCES person (id), "
+            "FOREIGN KEY (routine_id) REFERENCES routines (id)"
+            ")"
+        ))
+        connection.execute(text(
+            "CREATE UNIQUE INDEX ix_calendar_overrides_day "
+            "ON calendar_overrides (person_id, day)"
+        ))
+        changed = True
+
+    changed |= _ensure_column(connection, "sets", "extras", "TEXT")
+    changed |= _ensure_column(
+        connection, "routines", "exclude_from_progression", "BOOLEAN")
+    changed |= _ensure_column(
+        connection, "routine_exercises", "rest_seconds", "INTEGER")
+    changed |= _ensure_column(
+        connection, "routine_exercises", "warmup_sets", "INTEGER")
+    changed |= _ensure_column(
+        connection, "routine_exercises", "intensifier", "TEXT")
+    changed |= _ensure_column(
+        connection, "routine_exercises", "target_duration_seconds", "INTEGER")
+    changed |= _ensure_column(
+        connection, "routine_exercises", "target_distance_m", "FLOAT")
+    changed |= _ensure_column(
+        connection, "routine_exercises", "progress_cardio", "BOOLEAN")
+    changed |= _ensure_column(
+        connection, "workout_exercises", "intensifier", "TEXT")
+    changed |= _ensure_column(
+        connection, "workouts", "routine_id", "INTEGER")
+    changed |= _ensure_column(
+        connection, "equipment_profiles", "base_weight_kg", "FLOAT")
+    return changed
+
+
 #: Migrations applied in order at start-up. Each must be idempotent.
 MIGRATIONS = (
     _migrate_body_measurements,
@@ -352,6 +415,7 @@ MIGRATIONS = (
     _migrate_workout_sets,
     _migrate_activity_steps,
     _migrate_routines,
+    _migrate_layout_rest,
 )
 
 

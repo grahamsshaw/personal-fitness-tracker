@@ -3,120 +3,119 @@
 {% block title %}Dashboard - Fitness Tracker{% endblock %}
 
 {% block content %}
-<h1>Dashboard</h1>
+<h1>Home</h1>
 
-{% if person %}
-<!--
-  Today card: the last session and this week's count. Answers "what have I
-  done lately" at a glance, the way a training app home screen should.
--->
-<div class="stats-grid">
-    <div class="stat-card">
-        <h3>Last session</h3>
-        <p class="stat-value">
-            {% if last_gym %}
-                {{ last_gym.started_at.strftime('%a %d %b') }}
-            {% else %}
-                --
-            {% endif %}
-        </p>
-        {% if last_gym %}
-            <p class="stat-source">{{ last_gym.workout_name or 'Workout' }} &middot; {{ week_workouts }} this week</p>
-        {% endif %}
-    </div>
-    <div class="stat-card">
-        <h3>This week</h3>
-        <p class="stat-value">
-            {% if week_breakdown %}
-                {{ week_breakdown.sessions }} sessions &middot; {{ week_breakdown.minutes }} min
-            {% else %}
-                --
-            {% endif %}
-        </p>
-        {% if week_breakdown and week_breakdown.by_source %}
-            <p class="stat-source">
-                {% for source, totals in week_breakdown.by_source.items() %}{{ source }}: {{ totals.sessions }}{% if not loop.last %}, {% endif %}{% endfor %}
-                &middot; {{ week_breakdown.calories }} kcal
-            </p>
-        {% endif %}
-    </div>
-    <div class="stat-card">
-        <h3>Weight</h3>
-        <p class="stat-value">
-            {% if latest_weight %}
-                {{ "%.1f"|format(latest_weight.value) }} {{ latest_weight.unit }}
-            {% else %}
-                --
-            {% endif %}
-        </p>
-        {% if person.weight_goal_kg and latest_weight %}
-            <p class="stat-source">
-                Goal {{ "%.1f"|format(person.weight_goal_kg) }} kg
-                &middot; {{ "%.1f"|format(latest_weight.value - person.weight_goal_kg) }} kg to go
-            </p>
-            {% if goal_progress is not none %}
-            <div class="progress" title="From your highest weight in the last 6 months">
-                <span style="width: {{ goal_progress }}%"></span>
-            </div>
-            {% endif %}
-        {% elif latest_weight %}
-            <p class="stat-source">Set a goal on the <a href="{{ url_for('main.profile') }}">profile page</a></p>
-        {% endif %}
-    </div>
-    <div class="stat-card">
-        <h3>Total Workouts</h3>
-        <p class="stat-value">{{ total_workouts }}</p>
-    </div>
-    <div class="stat-card">
-        <h3>Neglected</h3>
-        <p class="stat-value">{{ neglected|length }}</p>
-        {% if neglected %}
-            <p class="stat-source"><a href="{{ url_for('main.muscles') }}">See what needs training</a></p>
-        {% endif %}
-    </div>
-</div>
-
-{% if todays_routines %}
-<div class="import-panel">
-    <h2>Today's plan</h2>
-    {% for routine in todays_routines %}
-    <p>
-        <strong>{{ routine.name }}</strong>
-        ({{ routine.exercises|length }} exercises, {{ routine.progression_policy }})
-    </p>
-    <form method="POST" action="{{ url_for('plan.start_routine', routine_id=routine.id) }}">
-        <button type="submit" class="btn btn-primary">Start {{ routine.name }}</button>
-    </form>
-    {% endfor %}
+{% if not person %}
+<div class="welcome">
+    <h2>Welcome to Fitness Tracker!</h2>
+    <p>Let's start by setting up your profile.</p>
+    <a href="{{ url_for('main.profile') }}" class="btn btn-primary">Set Up Profile</a>
 </div>
 {% endif %}
 
-<div class="dashboard-section">
-    <h2>Recent Workouts</h2>
-    {% if recent_workouts %}
+<!--
+  Home blocks
+  -----------
+  One visual block per concern down a narrow column: this week's calendar,
+  today's session, body weight, and the activity streak. Blocks link into
+  overlays (data-overlay) for detail rather than navigating away.
+-->
+
+<div class="import-panel">
+    <h2>This week</h2>
+    <p class="text-muted">
+        <a href="{{ url_for('main.dashboard', week_offset=week_offset - 1) }}">&laquo; Prev</a>
+        &middot; {{ week_label }} &middot;
+        <a href="{{ url_for('main.dashboard', week_offset=week_offset + 1) }}">Next &raquo;</a>
+        {% if week_offset != 0 %}&middot; <a href="{{ url_for('main.dashboard') }}">This week</a>{% endif %}
+    </p>
     <table class="table">
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Name</th>
-                <th>Exercises</th>
-                <th>Duration</th>
-            </tr>
-        </thead>
         <tbody>
-            {% for workout in recent_workouts %}
-            <tr>
-                <td>{{ workout.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                <td><a href="{{ url_for('main.workout_detail', workout_id=workout.id) }}">{{ workout.workout_name }}</a></td>
-                <td>{{ workout.exercises|length }}</td>
-                <td>{% if workout.duration_seconds %}{{ (workout.duration_seconds / 60)|int }} min{% else %}--{% endif %}</td>
+            {% for day in week_days %}
+            <tr {% if day.is_today %}class="today-row"{% endif %}>
+                <td><strong>{{ day.label }}</strong></td>
+                <td>
+                    {% if day.override_rest %}
+                        Rest
+                    {% elif day.override_routine %}
+                        {{ day.override_routine.name }}
+                    {% elif day.routines %}
+                        {{ day.routines|map(attribute='name')|join(' + ') }}
+                    {% else %}
+                        <span class="text-muted">Rest</span>
+                    {% endif %}
+                    {% if day.sessions %}
+                        <br><small class="text-muted">{{ day.sessions|join(', ') }}</small>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{{ url_for('main.calendar_day', day=day.iso) }}" data-overlay>Plan</a>
+                </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
-    {% else %}
-    <p>No workouts yet. <a href="{{ url_for('workouts.new_workout') }}">Log your first workout</a>.</p>
+    {% if todays_routines %}
+    <div class="form-actions">
+        {% for routine in todays_routines %}
+        <form method="POST" action="{{ url_for('plan.start_routine', routine_id=routine.id) }}" style="display:inline">
+            <button type="submit" class="btn btn-primary">Start {{ routine.name }}</button>
+        </form>
+        {% endfor %}
+    </div>
     {% endif %}
+</div>
+
+<div class="import-panel">
+    <h2>Body weight <a href="{{ url_for('main.profile') }}" class="btn btn-small">+ Log</a></h2>
+    {% if latest_weight %}
+    <p class="stat-value">{{ "%.1f"|format(latest_weight.value) }} {{ latest_weight.unit }}</p>
+    {% endif %}
+    {% if recent_weights|length > 1 %}
+    <ul>
+        {% for measurement in recent_weights[1:3] %}
+        <li>
+            {{ "%.1f"|format(measurement.value) }} {{ measurement.unit }}
+            <small class="text-muted">{{ measurement.measured_at.strftime('%a %d %b') }}</small>
+            {% if measurement.source == 'manual' %}
+            <form method="POST" action="{{ url_for('main.delete_measurement', measurement_id=measurement.id) }}" style="display:inline" onsubmit="return confirm('Delete this reading?');">
+                <button type="submit" class="btn btn-small" aria-label="Delete reading">🗑</button>
+            </form>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    {% if person and person.weight_goal_kg and latest_weight %}
+    <p class="stat-source">
+        Goal {{ "%.1f"|format(person.weight_goal_kg) }} kg
+        &middot; {{ "%.1f"|format(latest_weight.value - person.weight_goal_kg) }} kg to go
+    </p>
+    {% if goal_progress is not none %}
+    <div class="progress" title="From your highest weight in the last 6 months">
+        <span style="width: {{ goal_progress }}%"></span>
+    </div>
+    {% endif %}
+    {% endif %}
+    <p><a href="{{ url_for('main.profile') }}">Full weight history</a></p>
+</div>
+
+<div class="import-panel">
+    <h2>Activity</h2>
+    {% if streak_weeks > 0 %}
+    <p class="stat-value">🔥 {{ streak_weeks }} week streak!</p>
+    {% endif %}
+    <p>
+        {{ week_breakdown.sessions if week_breakdown else 0 }} sessions this week
+        &middot; {{ total_workouts }} workouts total
+    </p>
+    {% if week_breakdown and week_breakdown.by_source %}
+    <p class="text-muted">
+        {% for source, totals in week_breakdown.by_source.items() %}{{ source }}: {{ totals.sessions }}{% if not loop.last %}, {% endif %}{% endfor %}
+        &middot; {{ week_breakdown.calories }} kcal
+    </p>
+    {% endif %}
+    <p><a href="{{ url_for('main.history') }}" data-overlay>Calendar history</a></p>
 </div>
 
 <div class="dashboard-section">
@@ -125,15 +124,6 @@
         <a href="{{ url_for('workouts.run_setup') }}" class="btn btn-primary">Start Guided Session</a>
         <a href="{{ url_for('plan.week') }}" class="btn btn-secondary">Weekly Plan</a>
         <a href="{{ url_for('workouts.new_workout') }}" class="btn btn-secondary">Log Workout</a>
-        <a href="{{ url_for('equipment.new_equipment') }}" class="btn btn-secondary">Add Equipment</a>
-        <a href="{{ url_for('main.profile') }}" class="btn btn-secondary">Edit Profile</a>
     </div>
 </div>
-{% else %}
-<div class="welcome">
-    <h2>Welcome to Fitness Tracker!</h2>
-    <p>Let's start by setting up your profile.</p>
-    <a href="{{ url_for('main.profile') }}" class="btn btn-primary">Set Up Profile</a>
-</div>
-{% endif %}
 {% endblock %}
