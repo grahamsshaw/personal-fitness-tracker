@@ -27,6 +27,7 @@
     </script>
 </head>
 <body>
+    {% if not request.args.get('embed') %}
     <nav class="navbar">
         <div class="nav-brand">
             <a href="{{ url_for('main.dashboard') }}">Fitness Tracker</a>
@@ -43,8 +44,27 @@
             <a href="{{ url_for('imports.import_dashboard') }}">Import</a>
             <a href="{{ url_for('main.profile') }}">Profile</a>
         </div>
-        <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">☀</button>
+        <div class="topbar-buttons">
+            <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">☀</button>
+            <a class="theme-toggle" href="{{ url_for('main.profile') }}" aria-label="Settings" style="text-decoration:none;">⚙</a>
+            <button id="menu-toggle" class="theme-toggle" aria-label="Menu">☰</button>
+        </div>
     </nav>
+    <div class="menu-scrim" id="menu-scrim" hidden></div>
+    <nav class="menu-drawer" id="menu-drawer" aria-label="Pages" hidden>
+        <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
+        <a href="{{ url_for('plan.week') }}">Plan</a>
+        <a href="{{ url_for('workouts.run_setup') }}">Start session</a>
+        <a href="{{ url_for('main.stats') }}">Stats</a>
+        <a href="{{ url_for('equipment.exercise_library') }}">Exercises</a>
+        <a href="{{ url_for('main.muscles') }}">Muscles</a>
+        <a href="{{ url_for('main.history') }}">History</a>
+        <a href="{{ url_for('main.activities') }}">Activities</a>
+        <a href="{{ url_for('equipment.list_equipment') }}">Equipment</a>
+        <a href="{{ url_for('imports.import_dashboard') }}">Import</a>
+        <a href="{{ url_for('main.profile') }}">Profile</a>
+    </nav>
+    {% endif %}
     
     <main class="container">
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -58,18 +78,21 @@
         {% block content %}{% endblock %}
     </main>
     
+    {% if not request.args.get('embed') %}
     <footer class="footer">
         <p>Fitness Tracker &copy; 2026</p>
     </footer>
 
-    <!-- Bottom tab bar: phones only (see the max-width media query). -->
+    <!-- Bottom tab bar: phones only (see the max-width media query).
+         Home / Plan / Start / Stats / Exercises per the layout notes. -->
     <nav class="bottom-nav" aria-label="Primary">
         <a href="{{ url_for('main.dashboard') }}">Home</a>
-        <a href="{{ url_for('workouts.new_workout') }}">Log</a>
-        <a href="{{ url_for('main.muscles') }}">Muscles</a>
         <a href="{{ url_for('plan.week') }}">Plan</a>
-        <a href="{{ url_for('main.profile') }}">Profile</a>
+        <a href="{{ url_for('workouts.run_setup') }}" class="start-tab">Start</a>
+        <a href="{{ url_for('main.stats') }}">Stats</a>
+        <a href="{{ url_for('equipment.exercise_library') }}">Exercises</a>
     </nav>
+    {% endif %}
 
     <!-- Chart.js is vendored locally (static/js/chart.umd.min.js) so charts
          work with no internet beyond the home LAN. See THIRD-PARTY-NOTICES.md. -->
@@ -77,6 +100,31 @@
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/overlay.js') }}"></script>
+    <script>
+    // Burger menu drawer (top bar). Independent of the overlay system.
+    (function () {
+      var toggle = document.getElementById("menu-toggle");
+      var drawer = document.getElementById("menu-drawer");
+      var scrim = document.getElementById("menu-scrim");
+      if (!toggle || !drawer) return;
+      function open() {
+        drawer.hidden = false;
+        if (scrim) scrim.hidden = false;
+      }
+      function close() {
+        drawer.hidden = true;
+        if (scrim) scrim.hidden = true;
+      }
+      toggle.addEventListener("click", function () {
+        drawer.hidden ? open() : close();
+      });
+      if (scrim) scrim.addEventListener("click", close);
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") close();
+      });
+    })();
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

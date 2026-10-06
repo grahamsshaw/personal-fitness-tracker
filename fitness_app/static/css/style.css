@@ -64,11 +64,118 @@ body {
     color: var(--primary);
 }
 
-/* Container */
+/* Container: narrow centre column. Content reads in one column down the
+ * middle on every screen size, so pages present the same on a phone and a
+ * monitor instead of expanding with the window. Wide tables scroll
+ * horizontally inside the column rather than stretching it. */
 .container {
-    max-width: 1200px;
+    max-width: 680px;
     margin: 0 auto;
-    padding: 2rem;
+    padding: 2rem 1rem;
+}
+.table-wrapper {
+    overflow-x: auto;
+}
+
+/*
+  Overlays
+  --------
+  Modal boxes over the page below (see overlay.js). Backdrop click and
+  Escape close the topmost box only; boxes nest.
+*/
+body.overlay-open {
+    overflow: hidden;
+}
+.overlay-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.overlay-box {
+    position: relative;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    width: 100%;
+    max-width: 640px;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.overlay-close {
+    position: absolute;
+    top: 0.4rem;
+    right: 0.6rem;
+    z-index: 2;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    width: 2rem;
+    height: 2rem;
+    font-size: 1.2rem;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--text);
+}
+.overlay-frame {
+    border: 0;
+    width: 100%;
+    height: 80vh;
+    background: var(--card-bg);
+}
+
+/* Top-bar menus: gear (settings) and burger (page list). */
+.topbar-buttons {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+.menu-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 200;
+    width: min(300px, 85vw);
+    background: var(--card-bg);
+    border-left: 1px solid var(--border);
+    box-shadow: -5px 0 20px rgba(0, 0, 0, 0.2);
+    padding: 1rem;
+    overflow-y: auto;
+}
+.menu-drawer[hidden] {
+    display: none;
+}
+.menu-drawer a {
+    display: block;
+    padding: 0.6rem 0.25rem;
+    color: var(--text);
+    text-decoration: none;
+    border-bottom: 1px solid var(--border);
+    font-weight: 500;
+}
+.menu-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 199;
+    background: rgba(0, 0, 0, 0.4);
+}
+.menu-scrim[hidden] {
+    display: none;
+}
+
+/* Bottom tab bar: Home / Plan / Start / Stats / Exercises. Start is the
+ * prominent centre action. */
+.bottom-nav a.start-tab {
+    color: var(--primary);
+    font-size: 0.85rem;
 }
 
 /* Typography */
