@@ -29,7 +29,7 @@
 
   function resolveTheme(stored) {
     if (stored === "light" || stored === "dark") return stored;
-    return systemDark() ? "dark" : "light";
+    return "dark";
   }
 
   function apply() {

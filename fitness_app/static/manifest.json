@@ -1,0 +1,16 @@
+{
+  "name": "Fitness Tracker",
+  "short_name": "Fitness",
+  "description": "Personal gym & body weight tracker",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c0e12",
+  "theme_color": "#0c0e12",
+  "icons": [
+    {
+      "src": "/static/icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
