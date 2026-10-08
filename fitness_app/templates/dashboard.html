@@ -29,35 +29,51 @@
         <a href="{{ url_for('main.dashboard', week_offset=week_offset + 1) }}">Next &raquo;</a>
         {% if week_offset != 0 %}&middot; <a href="{{ url_for('main.dashboard') }}">This week</a>{% endif %}
     </p>
-    <table class="table">
-        <tbody>
-            {% for day in week_days %}
-            <tr {% if day.is_today %}class="today-row"{% endif %}>
-                <td><strong>{{ day.label }}</strong></td>
-                <td>
-                    {% if day.override_rest %}
-                        Rest
-                    {% elif day.override_routine %}
-                        {{ day.override_routine.name }}
-                    {% elif day.routines %}
-                        {{ day.routines|map(attribute='name')|join(' + ') }}
-                    {% else %}
-                        <span class="text-muted">Rest</span>
-                    {% endif %}
-                    {% if day.sessions %}
-                        <br><small class="text-muted">{{ day.sessions|join(', ') }}</small>
-                    {% endif %}
-                </td>
-                <td>
-                    <a href="{{ url_for('main.calendar_day', day=day.iso) }}" data-overlay>Plan</a>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% if todays_routines %}
+    <!--
+      Week strip: one tappable cell per day. Today is boxed; a filled dot
+      marks a logged session, a hollow dot a planned routine. Tapping a day
+      opens that date's plan sheet (routine, rest, or back to default).
+    -->
+    <div class="week-strip" role="navigation" aria-label="Days this week">
+        {% for day in week_days %}
+        <a href="{{ url_for('main.calendar_day', day=day.iso) }}" data-overlay
+           class="day-cell{% if day.is_today %} today{% endif %}{% if day.has_plan %} planned{% endif %}"
+           {% if day.is_today %}aria-current="date"{% endif %}
+           title="{{ day.label }}{% if day.sessions %} — {{ day.sessions|join(', ') }}{% endif %}">
+            <span class="day-dow">{{ day.dow }}</span>
+            <span class="day-dom">{{ day.dom }}</span>
+            <span class="day-dot" aria-hidden="true">{% if day.has_session %}●{% elif day.has_plan %}○{% else %}&nbsp;{% endif %}</span>
+        </a>
+        {% endfor %}
+    </div>
+    {% if today_cell %}
+    <h3>Today — {{ today_cell.label }}</h3>
+    {% if today_cell.override_rest %}
+    <p class="text-muted">Rest day — tap a day above to change it.</p>
+    {% else %}
+    {% set planned = [today_cell.override_routine] if today_cell.override_routine else today_cell.routines %}
+    {% if planned and planned[0] %}
+    <ul>
+        {% for routine in planned %}
+        <li>
+            <strong>{{ routine.name }}</strong>
+            {% if routine.exercises %}
+            <small class="text-muted"> — {{ routine.exercises|map(attribute='exercise_name')|join(', ') }}</small>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-muted">Nothing scheduled — tap today above to plan a routine.</p>
+    {% endif %}
+    {% endif %}
+    {% if today_cell.sessions %}
+    <p class="text-muted">Logged: {{ today_cell.sessions|join(', ') }}</p>
+    {% endif %}
+    {% endif %}
+    {% if today_routines %}
     <div class="form-actions">
-        {% for routine in todays_routines %}
+        {% for routine in today_routines %}
         <form method="POST" action="{{ url_for('plan.start_routine', routine_id=routine.id) }}" style="display:inline">
             <button type="submit" class="btn btn-primary">Start {{ routine.name }}</button>
         </form>

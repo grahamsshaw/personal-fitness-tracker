@@ -717,6 +717,56 @@ tr.subrow td:first-child {
     border-radius: 999px;
 }
 
+/* Week strip: seven tappable day cells in one row. Today is boxed;
+ * a filled dot marks a logged session, a hollow dot a planned routine. */
+.week-strip {
+    display: flex;
+    gap: 0.35rem;
+    margin: 0.75rem 0 1rem;
+}
+.day-cell {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    padding: 0.5rem 0.15rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--card-bg);
+    color: var(--text);
+    text-decoration: none;
+    min-height: 64px;
+    justify-content: center;
+}
+.day-cell .day-dow {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.day-cell .day-dom {
+    font-size: 1.1rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+.day-cell .day-dot {
+    font-size: 0.7rem;
+    line-height: 1;
+    color: var(--primary);
+    min-height: 0.8em;
+}
+.day-cell.planned {
+    border-color: var(--primary);
+}
+.day-cell.today {
+    border: 2px solid var(--primary);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+}
+.day-cell.today .day-dow {
+    color: var(--primary);
+}
+
 /* Bottom tab bar: phones only, mirrors the key destinations */
 .bottom-nav {
     display: none;

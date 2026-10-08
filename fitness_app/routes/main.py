@@ -93,25 +93,24 @@ def dashboard():
         training_context.weekly_by_source(person.id) if person else None
     )
 
-    # Today's planned routines, if any.
-    todays_routines = []
-    if person:
-        import json as json_module
-        from ..models import Routine
-        weekday = today.weekday()
-        for routine in Routine.query.filter_by(person_id=person.id).all():
-            try:
-                days = json_module.loads(routine.days or "[]")
-            except (ValueError, TypeError):
-                days = []
-            if weekday in days:
-                todays_routines.append(routine)
-
     # Week calendar (cyclable): per-day routines, overrides and sessions.
     week_offset = request.args.get("week_offset", 0, type=int)
     week_start_shifted = week_start + timedelta(weeks=week_offset)
     week_label = "This week" if week_offset == 0 else week_start_shifted.strftime("w/c %d %b")
     week_days = _week_days(person, week_start_shifted) if person else []
+
+    # Today's plan, override-aware: a per-date override wins over the weekday
+    # schedule (unlike the old weekday-only list, which could offer to start
+    # a routine the user had explicitly cleared for today).
+    today_cell = next(
+        (cell for cell in week_days if cell["is_today"]), None
+    )
+    today_routines = []
+    if today_cell is not None:
+        if today_cell["override_routine"] is not None:
+            today_routines = [today_cell["override_routine"]]
+        elif not today_cell["override_rest"]:
+            today_routines = list(today_cell["routines"])
 
     # Last three weights for the home weight block.
     recent_weights = BodyMeasurement.query.filter_by(
@@ -136,7 +135,8 @@ def dashboard():
         goal_progress=goal_progress,
         neglected=neglected,
         week_breakdown=week_breakdown,
-        todays_routines=todays_routines,
+        today_cell=today_cell,
+        today_routines=today_routines,
         week_offset=week_offset,
         week_label=week_label,
         week_days=week_days,
@@ -192,6 +192,12 @@ def _week_days(person, week_start):
             "iso": day.isoformat(),
             "label": day.strftime("%a %d %b") + (" (today)" if day == today else ""),
             "is_today": day == today,
+            # Compact strip fields: two-letter weekday, day number, and flags
+            # so the home page renders one tappable cell per day.
+            "dow": day.strftime("%a")[:2],
+            "dom": day.day,
+            "has_plan": bool(routines or override_routine) and not override_rest,
+            "has_session": bool(sessions),
             "routines": routines,
             "override_routine": override_routine,
             "override_rest": override_rest,

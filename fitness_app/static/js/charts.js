@@ -110,16 +110,24 @@ function measurementChartOptions(yTitle) {
  * @param {string} unit     Unit suffix for the tooltip ('' for BMI).
  */
 function toPoints(payload, unit) {
-    return payload.values.map((value, i) => ({
-        y: value,
-        meta: {
-            value: value,
-            unit: unit,
-            source: payload.sources?.[i],
-            superseded: payload.superseded?.[i] ?? false,
-            time: payload.times?.[i] ?? null
-        }
-    }));
+    // Plain guards instead of ?. / ?? so the measurement charts keep working
+    // on older phone browsers (the stats page's inline chart uses no modern
+    // syntax, which is why it kept drawing where these charts did not).
+    var sources = payload.sources || [];
+    var setAsideFlags = payload.superseded || [];
+    var times = payload.times || [];
+    return payload.values.map(function (value, i) {
+        return {
+            y: value,
+            meta: {
+                value: value,
+                unit: unit,
+                source: sources[i],
+                superseded: setAsideFlags[i] === true,
+                time: times[i] != null ? times[i] : null
+            }
+        };
+    });
 }
 
 /**
@@ -146,8 +154,9 @@ function createMeasurementChart(canvasId, data, measurementType) {
     }
 
     // The API always sends this array, but default it so a partial payload
-    // cannot throw and leave the page with a blank canvas.
-    const setAside = data.superseded ?? [];
+    // cannot throw and leave the page with a blank canvas. Plain || rather
+    // than ?? for older phone browsers (see toPoints).
+    const setAside = data.superseded || [];
 
     chartRegistry[canvasId] = new Chart(ctx, {
         type: 'line',
