@@ -296,6 +296,18 @@ class WorkoutExercise(db.Model):
     moves = db.Column(db.Integer)
     compliance = db.Column(db.Float)
     total_weight_kg = db.Column(db.Float)
+    # Cardio detail from Technogym (live API performedPhysicalActivity data).
+    # The importer used to keep only duration/calories/MOVEs and throw the
+    # rest away — which is how a 20-minute treadmill run ended up showing
+    # 0 km/h. NULL when the source never reported them.
+    distance_m = db.Column(db.Float)
+    avg_speed_kmh = db.Column(db.Float)
+    avg_hr_bpm = db.Column(db.Float)
+    max_hr_bpm = db.Column(db.Float)
+    elevation_m = db.Column(db.Float)
+    floors_climbed = db.Column(db.Integer)
+    avg_power_w = db.Column(db.Float)
+    avg_rpm = db.Column(db.Float)
     exercise_order = db.Column(db.Integer, default=0)
     source = db.Column(db.String(50), default="manual")
     source_id = db.Column(db.String(100))

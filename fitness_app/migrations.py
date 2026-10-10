@@ -414,6 +414,34 @@ def _migrate_layout_rest(connection) -> bool:
     return changed
 
 
+def _migrate_workout_cardio_metrics(connection) -> bool:
+    """Keep Technogym's cardio detail instead of throwing it away.
+
+    The live importer stored duration/calories/MOVEs and dropped distance,
+    speed, heart rate, elevation, floors, power and cadence — leaving runs
+    with no distance at all. Nullable: old rows simply have no values.
+
+    Args:
+        connection: An open SQLAlchemy connection.
+
+    Returns:
+        True if anything changed.
+    """
+    changed = False
+    for column, ddl in (
+        ("distance_m", "FLOAT"),
+        ("avg_speed_kmh", "FLOAT"),
+        ("avg_hr_bpm", "FLOAT"),
+        ("max_hr_bpm", "FLOAT"),
+        ("elevation_m", "FLOAT"),
+        ("floors_climbed", "INTEGER"),
+        ("avg_power_w", "FLOAT"),
+        ("avg_rpm", "FLOAT"),
+    ):
+        changed |= _ensure_column(connection, "workout_exercises", column, ddl)
+    return changed
+
+
 #: Migrations applied in order at start-up. Each must be idempotent.
 MIGRATIONS = (
     _migrate_body_measurements,
@@ -425,6 +453,7 @@ MIGRATIONS = (
     _migrate_activity_steps,
     _migrate_routines,
     _migrate_layout_rest,
+    _migrate_workout_cardio_metrics,
 )
 
 

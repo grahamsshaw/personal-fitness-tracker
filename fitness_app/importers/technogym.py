@@ -348,7 +348,10 @@ class TechnogymImporter(BaseImporter):
                         db.session.add(equipment)
                         db.session.flush()
 
-                # Parse exercise metrics
+                # Parse exercise metrics. The live API returns a dozen
+                # physicalProperty entries per exercise; everything here is
+                # kept, because dropping keys is how treadmill runs ended up
+                # with no distance at all.
                 perf_data = {
                     d["physicalProperty"]: d.get("formattedValue", "")
                     for d in (ex_data.get("data") or {}).get("data", [])
@@ -368,11 +371,22 @@ class TechnogymImporter(BaseImporter):
                     equipment_name=machine,
                     machine=machine,
                     resistance_type=perf_data.get("ExecutionMode", ""),
-                    duration_seconds=self._parse_duration(duration) * 60 if self._parse_duration(duration) else None,
+                    duration_seconds=self._parse_duration_seconds(duration),
                     calories=self._parse_calories(calories),
                     moves=self._parse_moves(moves),
                     compliance=self._parse_float(compliance),
                     total_weight_kg=self._parse_float(total_weight),
+                    distance_m=self._parse_distance(
+                        perf_data.get("HDistance", "")
+                        or perf_data.get("RowingDistance", "")),
+                    avg_speed_kmh=self._parse_metric(perf_data.get("AvgSpeed", "")),
+                    avg_hr_bpm=self._parse_metric(perf_data.get("AvgHr", "")),
+                    max_hr_bpm=self._parse_metric(perf_data.get("MaxHr", "")),
+                    elevation_m=self._parse_metric(perf_data.get("Elevation", "")),
+                    floors_climbed=self._parse_metric(
+                        perf_data.get("Floors", ""), kind=int),
+                    avg_power_w=self._parse_metric(perf_data.get("AvgPower", "")),
+                    avg_rpm=self._parse_metric(perf_data.get("AvgRpm", "")),
                     exercise_order=order,
                     source=self.source_name,
                     source_id=f"{id_cr}_{order}",
@@ -385,11 +399,31 @@ class TechnogymImporter(BaseImporter):
         return result
 
     def _parse_duration(self, duration_str: str) -> int:
-        """Parse duration string like '49 minutes' to minutes."""
-        if not duration_str:
+        """Parse a Technogym duration to whole minutes (session level).
+
+        Clock readings (``"20:00 min"`` → 20, ``"01:40 min"`` → 2);
+        plain ``"49 minutes"`` reads as minutes. Per-exercise rows use
+        :meth:`_parse_duration_seconds` for exact seconds instead.
+        """
+        seconds = self._parse_duration_seconds(duration_str)
+        if seconds is None:
             return 0
+        return round(seconds / 60)
+
+    def _parse_duration_seconds(self, duration_str: str) -> int | None:
+        """Parse a Technogym exercise duration to exact seconds.
+
+        Clock readings (``"20:00 min"`` → 1200, ``"00:47 min"`` → 47);
+        plain ``"49 minutes"`` falls back to minutes. None when blank —
+        the row is then skipped downstream rather than stored as zero.
+        """
+        if not duration_str:
+            return None
+        clock = re.search(r"(\d+):(\d+)", duration_str)
+        if clock:
+            return int(clock.group(1)) * 60 + int(clock.group(2))
         match = re.search(r"(\d+)", duration_str)
-        return int(match.group(1)) if match else 0
+        return int(match.group(1)) * 60 if match else None
 
     def _parse_calories(self, calories_str: str) -> float | None:
         """Parse calories string like '519 kcal' to float."""
@@ -413,3 +447,33 @@ class TechnogymImporter(BaseImporter):
             return float(value)
         except (ValueError, TypeError):
             return None
+
+    @staticmethod
+    def _parse_metric(value: str, kind=float) -> float | int | None:
+        """First number in a formatted metric ("6.5 km/h" → 6.5).
+
+        Args:
+            value: Raw formatted string from the API.
+            kind: ``float`` normally, ``int`` for counted things (floors).
+
+        Returns:
+            The number, or None when there is none.
+        """
+        if not value:
+            return None
+        match = re.search(r"(\d+(?:\.\d+)?)", str(value))
+        if not match:
+            return None
+        try:
+            return kind(match.group(1))
+        except (ValueError, TypeError):
+            return None
+
+    def _parse_distance(self, value: str) -> float | None:
+        """Parse a distance string to metres ("2.16 km" → 2160.0)."""
+        number = self._parse_metric(value)
+        if number is None:
+            return None
+        if "km" in str(value).lower():
+            return number * 1000.0
+        return float(number)
